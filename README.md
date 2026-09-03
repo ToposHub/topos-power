@@ -48,6 +48,20 @@ topos-power
 
 应用顶部右侧提供中文和 English 两种语言选择。选择会立即刷新界面，并保存在本机，下次启动时自动使用上次的语言。
 
+## 许可证与版权
+
+Copyright (C) 2026 heng / Topos Project
+
+Topos Power is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+本项目采用 GNU General Public License v3.0 or later（GPL-3.0-or-later）授权，完整协议见 [LICENSE](LICENSE)。项目按“现状”提供，不对适用性、稳定性或因使用本软件造成的任何损失作保证。
+
+发布本项目的修改版或打包版时，请保留版权声明、许可证文本和第三方许可说明，并按照 GPL-3.0-or-later 提供对应源代码。
+
+当前项目依赖 PyQt6。PyQt6 社区版本采用 GPLv3 授权；分发包含 PyQt6 的应用时，还必须遵守 PyQt6、Qt 及其他实际打包组件各自的许可证要求，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+贡献代码前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
 运行测试：
 
 ```bash
