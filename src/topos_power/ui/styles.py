@@ -250,6 +250,209 @@ QToolTip {
     padding: 6px 10px;
     font-size: 12px;
 }
+
+/* ========== Topos Power modern surface ========== */
+QWidget#AppSurface {
+    background-color: #111318;
+}
+
+QFrame#Card, QGroupBox#Card {
+    background-color: #181a20;
+    border: 1px solid #2a2d35;
+    border-radius: 14px;
+}
+
+QFrame#HeaderFrame {
+    background: transparent;
+}
+
+QLabel#BrandMark {
+    background-color: #3478f6;
+    border-radius: 15px;
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: bold;
+    min-width: 30px;
+    max-width: 30px;
+    min-height: 30px;
+    max-height: 30px;
+    qproperty-alignment: AlignCenter;
+}
+
+QLabel#BrandTitle {
+    color: #f5f5f7;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+QLabel#BrandSubtitle, QLabel#SecondaryText {
+    color: #8d9099;
+    font-size: 11px;
+}
+
+QLabel#PlatformBadge, QLabel#StatusBadge {
+    background-color: #20232b;
+    border: 1px solid #30343e;
+    border-radius: 10px;
+    color: #aeb4c0;
+    padding: 5px 10px;
+    font-size: 11px;
+}
+
+QLabel#StatusBadge[state="running"] {
+    background-color: #253b69;
+    border-color: #3478f6;
+    color: #d9e6ff;
+}
+
+QLabel#StatusBadge[state="ready"] {
+    background-color: #20232b;
+    border-color: #30343e;
+    color: #aeb4c0;
+}
+
+QFrame#ModeBar {
+    background-color: #1b1d23;
+    border: 1px solid #2b2e37;
+    border-radius: 11px;
+}
+
+QToolButton#ModeSwitch {
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: #9297a3;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 22px;
+}
+
+QToolButton#ModeSwitch:hover {
+    background-color: #252831;
+    color: #e9ebf0;
+}
+
+QToolButton#ModeSwitch:checked {
+    background-color: #3478f6;
+    color: #ffffff;
+}
+
+QLabel#CardEyebrow {
+    color: #8d9099;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+QLabel#CardTitle {
+    color: #f5f5f7;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+QLabel#TimeValue {
+    color: #f5f5f7;
+    font-size: 54px;
+    font-weight: 500;
+    letter-spacing: 1px;
+}
+
+QLabel#CountdownTarget {
+    color: #9297a3;
+    font-size: 12px;
+}
+
+QProgressBar#CountdownProgress {
+    background-color: #292c34;
+    border: none;
+    border-radius: 4px;
+    min-height: 7px;
+    max-height: 7px;
+}
+
+QProgressBar#CountdownProgress::chunk {
+    background-color: #3478f6;
+    border-radius: 4px;
+}
+
+QLabel#LargeSettingValue {
+    color: #f5f5f7;
+    font-size: 23px;
+    font-weight: 500;
+}
+
+QLabel#SettingCaption {
+    color: #8d9099;
+    font-size: 12px;
+}
+
+QFrame#Divider {
+    background-color: #2a2d35;
+    min-height: 1px;
+    max-height: 1px;
+}
+
+QRadioButton, QCheckBox {
+    color: #d9dce3;
+    spacing: 8px;
+}
+
+QRadioButton:hover, QCheckBox:hover {
+    color: #ffffff;
+}
+
+QPushButton#PrimaryAction {
+    background-color: #3478f6;
+    border: none;
+    border-radius: 11px;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+    min-height: 44px;
+}
+
+QPushButton#PrimaryAction:hover {
+    background-color: #4b8bff;
+}
+
+QPushButton#PrimaryAction:pressed {
+    background-color: #2864d3;
+}
+
+QPushButton#PrimaryAction[state="running"] {
+    background-color: #d94f5c;
+}
+
+QPushButton#SystemAction {
+    background-color: #23262e;
+    border: 1px solid #343842;
+    border-radius: 8px;
+    color: #aeb4c0;
+    padding: 5px 12px;
+}
+
+QPushButton#SystemAction:hover {
+    background-color: #2b2f38;
+    color: #ffffff;
+}
+
+QLabel#StatusLabel {
+    color: #8d9099;
+    font-size: 11px;
+}
+
+QGroupBox#SystemSettingsCard {
+    background-color: #181a20;
+    border: 1px solid #2a2d35;
+    border-radius: 14px;
+    margin-top: 8px;
+    padding-top: 12px;
+}
+
+QGroupBox#SystemSettingsCard::title {
+    color: #f5f5f7;
+    left: 14px;
+    padding: 0 6px;
+}
 """
 
 # 滑动条内联样式（较大手柄）
@@ -284,4 +487,3 @@ SLIDER_STYLE = """
         border-radius: 5px;
     }
 """
-

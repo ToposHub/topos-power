@@ -8,8 +8,9 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QProgressBar, QFrame, QGroupBox, QSpinBox,
                              QSystemTrayIcon, QMenu, QStyle, QSlider,
                              QRadioButton, QButtonGroup, QStackedWidget,
-                             QToolButton)
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+                             QToolButton, QGraphicsOpacityEffect)
+from PyQt6.QtCore import (Qt, QTimer, pyqtSignal, QPropertyAnimation,
+                          QEasingCurve)
 from PyQt6.QtGui import QIcon, QFont
 
 from ..config import APP_NAME
@@ -46,6 +47,7 @@ class PowerTimer(QMainWindow):
         self.screen_off_done = False
         self.screen_off_in_progress = False
         self.pending_both_sleep = False
+        self.options_animation = None
         self.caffeinate_proc = None
         self.shutdown_operation = None
         self.cancel_after_shutdown_scheduled = False
@@ -59,8 +61,6 @@ class PowerTimer(QMainWindow):
         self._setup_tray()
         # UI
         self._setup_ui()
-
-        self.show()
 
     # ═══════════ 系统托盘 ═══════════
     def _setup_tray(self):
@@ -91,39 +91,57 @@ class PowerTimer(QMainWindow):
     # ═══════════ UI 构建 ═══════════
     def _setup_ui(self):
         main_widget = QWidget()
-        main_widget.setStyleSheet("background-color: #0d1117;")
+        main_widget.setObjectName("AppSurface")
         self.setCentralWidget(main_widget)
 
         layout = QVBoxLayout(main_widget)
-        layout.setContentsMargins(24, 16, 24, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(28, 22, 28, 18)
+        layout.setSpacing(14)
 
-        # ── 顶部标题 ──
+        # ── 品牌头部 ──
         header_frame = QFrame()
-        header_frame.setFixedHeight(44)
+        header_frame.setObjectName("HeaderFrame")
         header_layout = QHBoxLayout(header_frame)
         header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(10)
 
-        title_text = QLabel("电源定时工具")
-        title_text.setStyleSheet(
-            "font-size: 18px; font-weight: bold; color: #58a6ff;")
-        header_layout.addWidget(title_text)
+        brand_mark = QLabel("⌁")
+        brand_mark.setObjectName("BrandMark")
+        header_layout.addWidget(brand_mark)
+
+        title_column = QVBoxLayout()
+        title_column.setSpacing(0)
+        title_text = QLabel(APP_NAME)
+        title_text.setObjectName("BrandTitle")
+        subtitle = QLabel("让每一次离开，都有一个明确的时间")
+        subtitle.setObjectName("BrandSubtitle")
+        title_column.addWidget(title_text)
+        title_column.addWidget(subtitle)
+        header_layout.addLayout(title_column)
         header_layout.addStretch()
+
+        platform_name = {
+            "Darwin": "macOS",
+            "Windows": "Windows",
+            "Linux": "Linux",
+        }.get(platform.system(), platform.system())
+        platform_badge = QLabel(platform_name)
+        platform_badge.setObjectName("PlatformBadge")
+        header_layout.addWidget(platform_badge)
         layout.addWidget(header_frame)
 
-        # ── 功能切换（分段按钮） ──
+        # ── 顶层功能切换 ──
         switch_frame = QFrame()
-        switch_frame.setFixedHeight(40)
+        switch_frame.setObjectName("ModeBar")
         switch_layout = QHBoxLayout(switch_frame)
-        switch_layout.setContentsMargins(0, 0, 0, 0)
-        switch_layout.setSpacing(0)
+        switch_layout.setContentsMargins(4, 4, 4, 4)
+        switch_layout.setSpacing(4)
 
         self.btn_shutdown = QToolButton()
         self.btn_shutdown.setObjectName("ModeSwitch")
         self.btn_shutdown.setText("定时关机")
         self.btn_shutdown.setCheckable(True)
         self.btn_shutdown.setChecked(True)
-        self.btn_shutdown.setProperty("first", True)
         self.btn_shutdown.clicked.connect(
             lambda: self._switch_func(self.FUNC_SHUTDOWN))
 
@@ -132,42 +150,73 @@ class PowerTimer(QMainWindow):
         self.btn_sleep.setText("定时睡眠")
         self.btn_sleep.setCheckable(True)
         self.btn_sleep.setChecked(False)
-        self.btn_sleep.setProperty("last", True)
         self.btn_sleep.clicked.connect(
             lambda: self._switch_func(self.FUNC_SLEEP))
 
-        switch_layout.addWidget(self.btn_shutdown)
-        switch_layout.addWidget(self.btn_sleep)
-        switch_layout.addStretch()
+        switch_layout.addWidget(self.btn_shutdown, 1)
+        switch_layout.addWidget(self.btn_sleep, 1)
         layout.addWidget(switch_frame)
 
-        # ── 倒计时（共享） ──
-        countdown_group = QGroupBox("倒计时")
-        countdown_layout = QVBoxLayout(countdown_group)
+        # ── 倒计时主卡片 ──
+        countdown_card = QFrame()
+        countdown_card.setObjectName("Card")
+        countdown_layout = QVBoxLayout(countdown_card)
+        countdown_layout.setContentsMargins(20, 18, 20, 18)
+        countdown_layout.setSpacing(10)
+
+        countdown_header = QHBoxLayout()
+        eyebrow = QLabel("NEXT ACTION")
+        eyebrow.setObjectName("CardEyebrow")
+        countdown_header.addWidget(eyebrow)
+        countdown_header.addStretch()
+
+        self.status_badge = QLabel("待机")
+        self.status_badge.setObjectName("StatusBadge")
+        self.status_badge.setProperty("state", "ready")
+        countdown_header.addWidget(self.status_badge)
+        countdown_layout.addLayout(countdown_header)
 
         self.time_label = QLabel("00:00:00")
         self.time_label.setObjectName("TimeValue")
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        countdown_layout.addWidget(self.time_label)
 
         self.pbar = QProgressBar()
+        self.pbar.setObjectName("CountdownProgress")
         self.pbar.setValue(0)
         self.pbar.setTextVisible(False)
-
-        countdown_layout.addWidget(self.time_label)
         countdown_layout.addWidget(self.pbar)
-        layout.addWidget(countdown_group)
 
-        # ── 时间设置（共享滑块） ──
-        settings_group = QGroupBox("设置时间")
-        settings_layout = QVBoxLayout(settings_group)
-        settings_layout.setSpacing(8)
+        target_row = QHBoxLayout()
+        self.exec_time_label = QLabel("")
+        self.exec_time_label.setObjectName("CountdownTarget")
+        self.exec_time_label.setAlignment(
+            Qt.AlignmentFlag.AlignCenter)
+        target_row.addWidget(self.exec_time_label)
+        countdown_layout.addLayout(target_row)
+        layout.addWidget(countdown_card)
 
-        self.slider_value_label = QLabel("1 小时")
-        self.slider_value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.slider_value_label.setStyleSheet(
-            "color: #58a6ff; font-size: 24px; font-weight: bold; "
-            "font-family: 'Segoe UI', sans-serif;")
-        settings_layout.addWidget(self.slider_value_label)
+        # ── 时间设置卡片 ──
+        settings_card = QFrame()
+        settings_card.setObjectName("Card")
+        settings_layout = QVBoxLayout(settings_card)
+        settings_layout.setContentsMargins(20, 18, 20, 18)
+        settings_layout.setSpacing(10)
+
+        settings_header = QHBoxLayout()
+        settings_title = QLabel("执行时间")
+        settings_title.setObjectName("CardTitle")
+        settings_header.addWidget(settings_title)
+        settings_header.addStretch()
+
+        self.slider_value_label = QLabel("1小时")
+        self.slider_value_label.setObjectName("LargeSettingValue")
+        settings_header.addWidget(self.slider_value_label)
+        settings_layout.addLayout(settings_header)
+
+        setting_caption = QLabel("倒计时结束后执行当前选中的操作")
+        setting_caption.setObjectName("SettingCaption")
+        settings_layout.addWidget(setting_caption)
 
         self.custom_slider = QSlider(Qt.Orientation.Horizontal)
         self.custom_slider.setRange(1, 1440)
@@ -176,32 +225,52 @@ class PowerTimer(QMainWindow):
         self.custom_slider.valueChanged.connect(self._update_slider_label)
         settings_layout.addWidget(self.custom_slider)
 
-        # 预计执行时间提示
-        self.exec_time_label = QLabel("")
-        self.exec_time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.exec_time_label.setStyleSheet(
-            "color: #8b949e; font-size: 12px;")
-        settings_layout.addWidget(self.exec_time_label)
+        slider_bounds = QHBoxLayout()
+        min_caption = QLabel("1 分钟")
+        min_caption.setObjectName("SecondaryText")
+        max_caption = QLabel("24 小时")
+        max_caption.setObjectName("SecondaryText")
+        slider_bounds.addWidget(min_caption)
+        slider_bounds.addStretch()
+        slider_bounds.addWidget(max_caption)
+        settings_layout.addLayout(slider_bounds)
+        layout.addWidget(settings_card)
 
-        layout.addWidget(settings_group)
+        # ── 模式选项卡片 ──
+        self.options_card = QFrame()
+        self.options_card.setObjectName("Card")
+        options_card_layout = QVBoxLayout(self.options_card)
+        options_card_layout.setContentsMargins(20, 16, 20, 16)
+        options_card_layout.setSpacing(8)
 
-        # ── 模式专属选项（QStackedWidget 切换） ──
+        options_header = QHBoxLayout()
+        options_title = QLabel("操作选项")
+        options_title.setObjectName("CardTitle")
+        options_header.addWidget(options_title)
+        options_header.addStretch()
+        self.options_summary = QLabel("关机")
+        self.options_summary.setObjectName("SecondaryText")
+        options_header.addWidget(self.options_summary)
+        options_card_layout.addLayout(options_header)
+
         self.options_stack = QStackedWidget()
+        self.options_stack.setObjectName("OptionsStack")
+        self.options_opacity = QGraphicsOpacityEffect(self.options_stack)
+        self.options_stack.setGraphicsEffect(self.options_opacity)
+        self.options_opacity.setOpacity(1.0)
 
-        # Page 0: 关机选项（简单提示）
+        # Page 0: 关机选项
         shutdown_options = QFrame()
         sd_layout = QVBoxLayout(shutdown_options)
         sd_layout.setContentsMargins(0, 4, 0, 0)
         sd_layout.setSpacing(4)
 
         sd_hint = QLabel(
-            "倒计时结束后系统将自动关机（需授权），"
-            "停止运行可取消关机计划。")
+            "倒计时结束后系统将自动关机。首次使用可能需要输入管理员密码。")
         sd_hint.setWordWrap(True)
-        sd_hint.setStyleSheet("color: #8b949e; font-size: 11px;")
+        sd_hint.setObjectName("SecondaryText")
         sd_layout.addWidget(sd_hint)
         sd_layout.addStretch()
-
         self.options_stack.addWidget(shutdown_options)
 
         # Page 1: 睡眠选项
@@ -210,11 +279,9 @@ class PowerTimer(QMainWindow):
         sl_layout.setContentsMargins(0, 4, 0, 0)
         sl_layout.setSpacing(6)
 
-        # 子模式单选
         self.mode_btn_group = QButtonGroup(self)
-
         radio_row = QHBoxLayout()
-        radio_row.setSpacing(16)
+        radio_row.setSpacing(12)
 
         self.radio_sleep = QRadioButton("系统睡眠")
         self.radio_sleep.setToolTip("电脑进入睡眠状态")
@@ -227,21 +294,19 @@ class PowerTimer(QMainWindow):
         self.mode_btn_group.addButton(self.radio_screen, 1)
         radio_row.addWidget(self.radio_screen)
 
-        self.radio_both = QRadioButton("先关屏后睡眠")
-        self.radio_both.setToolTip("先关屏，等待后再睡眠")
+        self.radio_both = QRadioButton("关屏后睡眠")
+        self.radio_both.setToolTip("先关闭显示器，等待后再进入睡眠")
         self.mode_btn_group.addButton(self.radio_both, 2)
         radio_row.addWidget(self.radio_both)
-
         radio_row.addStretch()
         sl_layout.addLayout(radio_row)
 
-        # 关屏提前量
         self.screen_offset_frame = QFrame()
         offset_layout = QHBoxLayout(self.screen_offset_frame)
         offset_layout.setContentsMargins(20, 2, 0, 0)
 
-        offset_label = QLabel("关屏提前")
-        offset_label.setStyleSheet("color: #8b949e;")
+        offset_label = QLabel("提前关闭显示器")
+        offset_label.setObjectName("SecondaryText")
         offset_layout.addWidget(offset_label)
 
         self.screen_offset_spin = QSpinBox()
@@ -252,53 +317,48 @@ class PowerTimer(QMainWindow):
             self._update_exec_time_hint)
         offset_layout.addWidget(self.screen_offset_spin)
 
-        offset_suffix = QLabel("后睡眠")
-        offset_suffix.setStyleSheet("color: #8b949e; font-size: 11px;")
+        offset_suffix = QLabel("后进入睡眠")
+        offset_suffix.setObjectName("SecondaryText")
         offset_layout.addWidget(offset_suffix)
         offset_layout.addStretch()
-
         self.screen_offset_frame.setVisible(False)
         sl_layout.addWidget(self.screen_offset_frame)
 
-        # 选项复选框
         options_row = QHBoxLayout()
-        options_row.setSpacing(20)
-
+        options_row.setSpacing(18)
         self.lock_checkbox = QCheckBox("操作前锁定屏幕")
         self.lock_checkbox.setChecked(True)
         options_row.addWidget(self.lock_checkbox)
-
         self.prevent_sleep_checkbox = QCheckBox("倒计时期间阻止自动睡眠")
         self.prevent_sleep_checkbox.setChecked(True)
         options_row.addWidget(self.prevent_sleep_checkbox)
-
         options_row.addStretch()
         sl_layout.addLayout(options_row)
 
         self.mode_btn_group.buttonClicked.connect(self._on_sleep_mode_changed)
-
         self.options_stack.addWidget(sleep_options)
+        options_card_layout.addWidget(self.options_stack)
+        layout.addWidget(self.options_card)
 
-        layout.addWidget(self.options_stack)
-
-        # ── 系统空闲睡眠设置（仅 macOS，仅睡眠模式显示） ──
+        # ── macOS 系统空闲睡眠设置 ──
         self.idle_group = None
         if platform.system() == "Darwin":
-            self.idle_group = QGroupBox("系统空闲睡眠（永久生效）")
+            self.idle_group = QGroupBox("系统空闲睡眠")
+            self.idle_group.setObjectName("SystemSettingsCard")
             idle_layout = QVBoxLayout(self.idle_group)
-            idle_layout.setSpacing(6)
+            idle_layout.setSpacing(8)
 
             idle_hint = QLabel(
-                "保存后永久生效，0 = 永不，保存时需输入密码。")
+                "永久生效，0 = 永不。保存时需要输入管理员密码。")
+            idle_hint.setObjectName("SecondaryText")
             idle_hint.setWordWrap(True)
-            idle_hint.setStyleSheet("color: #8b949e; font-size: 11px;")
             idle_layout.addWidget(idle_hint)
 
             idle_row = QHBoxLayout()
-            idle_row.setSpacing(16)
+            idle_row.setSpacing(12)
 
-            lbl_display = QLabel("关屏:")
-            lbl_display.setStyleSheet("color: #e6edf3;")
+            lbl_display = QLabel("关屏")
+            lbl_display.setObjectName("SettingCaption")
             idle_row.addWidget(lbl_display)
 
             self.idle_display_spin = QSpinBox()
@@ -308,10 +368,9 @@ class PowerTimer(QMainWindow):
             self.idle_display_spin.setSpecialValueText("永不")
             idle_row.addWidget(self.idle_display_spin)
 
-            idle_row.addSpacing(12)
-
-            lbl_sleep = QLabel("睡眠:")
-            lbl_sleep.setStyleSheet("color: #e6edf3;")
+            lbl_sleep = QLabel("睡眠")
+            lbl_sleep.setObjectName("SettingCaption")
+            idle_row.addSpacing(8)
             idle_row.addWidget(lbl_sleep)
 
             self.idle_sleep_spin = QSpinBox()
@@ -321,73 +380,52 @@ class PowerTimer(QMainWindow):
             self.idle_sleep_spin.setSpecialValueText("永不")
             idle_row.addWidget(self.idle_sleep_spin)
 
-            idle_row.addSpacing(12)
-
-            self.idle_apply_btn = QPushButton("保存系统设置")
-            self.idle_apply_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #21262d;
-                    border: 1px solid #30363d;
-                    border-radius: 6px;
-                    color: #58a6ff;
-                    padding: 6px 14px;
-                    font-size: 12px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #30363d;
-                    border-color: #58a6ff;
-                }
-                QPushButton:pressed {
-                    background-color: #1f6feb;
-                    color: #ffffff;
-                }
-            """)
+            idle_row.addStretch()
+            self.idle_apply_btn = QPushButton("保存设置")
+            self.idle_apply_btn.setObjectName("SystemAction")
             self.idle_apply_btn.clicked.connect(self._apply_idle_settings)
             idle_row.addWidget(self.idle_apply_btn)
-
             idle_layout.addLayout(idle_row)
-            self._load_idle_settings()
 
-            self.idle_group.setVisible(False)  # 默认隐藏（关机模式）
+            self._load_idle_settings()
+            self.idle_group.setVisible(False)
             layout.addWidget(self.idle_group)
 
-        # ── 操作按钮 ──
-        self.action_btn = QPushButton("▶ 开始倒计时")
-        self.action_btn.setObjectName("ActionBtn")
-        self.action_btn.setMinimumHeight(46)
-        font = self.action_btn.font()
-        font.setPointSize(16)
-        self.action_btn.setFont(font)
-        self.action_btn.setProperty("state", "normal")
+        # ── 主操作 ──
+        self.action_btn = QPushButton("▶  开始倒计时")
+        self.action_btn.setObjectName("PrimaryAction")
+        self.action_btn.setMinimumHeight(44)
         self.action_btn.clicked.connect(self._toggle_action)
         layout.addWidget(self.action_btn)
 
-        # ── 使用说明 ──
-        info_group = QGroupBox("使用说明")
-        info_layout = QVBoxLayout(info_group)
-
         self.info_text = QLabel()
         self.info_text.setWordWrap(True)
-        self.info_text.setStyleSheet("color: #8b949e; font-size: 11px;")
-        info_layout.addWidget(self.info_text)
-
-        layout.addWidget(info_group)
+        self.info_text.setObjectName("SecondaryText")
+        self.info_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.info_text)
 
         layout.addStretch()
 
-        # ── 底部状态 ──
         self.status_label = QLabel("就绪")
+        self.status_label.setObjectName("StatusLabel")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setStyleSheet("color: #484f58; font-size: 12px;")
         layout.addWidget(self.status_label)
 
-        # 初始渲染
         self._update_button_state()
         self._update_exec_time_hint()
         self._update_info_text()
-
     # ═══════════ 功能切换 ═══════════
+    def _animate_options_transition(self):
+        """让选项卡切换有轻量淡入效果，避免界面突然跳变。"""
+        self.options_opacity.setOpacity(0.35)
+        animation = QPropertyAnimation(self.options_opacity, b"opacity", self)
+        animation.setDuration(180)
+        animation.setStartValue(0.35)
+        animation.setEndValue(1.0)
+        animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.options_animation = animation
+        animation.start()
+
     def _switch_func(self, func):
         """切换顶层功能（关机 / 睡眠）"""
         if self.is_running:
@@ -401,6 +439,9 @@ class PowerTimer(QMainWindow):
 
         # 切换选项面板
         self.options_stack.setCurrentIndex(func)
+        self.options_summary.setText(
+            "关机" if func == self.FUNC_SHUTDOWN else "睡眠与关屏")
+        self._animate_options_transition()
 
         # macOS 空闲设置仅睡眠模式可见
         if self.idle_group:
@@ -461,6 +502,12 @@ class PowerTimer(QMainWindow):
         screen_only = (mode == PowerManager.MODE_SCREEN_OFF)
         self.lock_checkbox.setVisible(not screen_only)
         self.prevent_sleep_checkbox.setVisible(not screen_only)
+        mode_names = {
+            PowerManager.MODE_SLEEP: "系统睡眠",
+            PowerManager.MODE_SCREEN_OFF: "关闭屏幕",
+            PowerManager.MODE_BOTH: "关屏后睡眠",
+        }
+        self.options_summary.setText(mode_names[mode])
         self._update_exec_time_hint()
 
     def _update_info_text(self):
@@ -486,6 +533,12 @@ class PowerTimer(QMainWindow):
             self.action_btn.setProperty("state", "normal")
         self.action_btn.style().unpolish(self.action_btn)
         self.action_btn.style().polish(self.action_btn)
+        if hasattr(self, "status_badge"):
+            self.status_badge.setText("运行中" if self.is_running else "待机")
+            self.status_badge.setProperty(
+                "state", "running" if self.is_running else "ready")
+            self.status_badge.style().unpolish(self.status_badge)
+            self.status_badge.style().polish(self.status_badge)
 
     def _set_controls_enabled(self, enabled):
         """统一启用/禁用输入控件"""
