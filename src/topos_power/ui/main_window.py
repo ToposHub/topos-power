@@ -415,15 +415,15 @@ class PowerTimer(QMainWindow):
         options_card_layout.addWidget(self.options_stack)
         layout.addWidget(self.options_card)
 
-        # ── macOS 系统空闲睡眠设置 ──
+        # ── 系统空闲睡眠设置 ──
         self.idle_group = None
-        if platform.system() == "Darwin":
+        if PowerManager.supports_system_idle_settings():
             self.idle_group = QGroupBox(self._tr("idle_title"))
             self.idle_group.setObjectName("SystemSettingsCard")
             idle_layout = QVBoxLayout(self.idle_group)
             idle_layout.setSpacing(8)
 
-            self.idle_hint = QLabel(self._tr("idle_hint"))
+            self.idle_hint = QLabel(self._tr(self._idle_hint_key()))
             self.idle_hint.setObjectName("SecondaryText")
             self.idle_hint.setWordWrap(True)
             idle_layout.addWidget(self.idle_hint)
@@ -534,6 +534,11 @@ class PowerTimer(QMainWindow):
         if code:
             self.language_manager.set_language(code)
 
+    def _idle_hint_key(self):
+        if platform.system() == "Windows":
+            return "idle_hint_windows"
+        return "idle_hint"
+
     def _apply_language(self, _language):
         """刷新当前界面的静态文案和动态预览。"""
         current_index = self.language_combo.findData(
@@ -573,7 +578,7 @@ class PowerTimer(QMainWindow):
             self._tr("prevent_sleep_tip"))
         if self.idle_group:
             self.idle_group.setTitle(self._tr("idle_title"))
-            self.idle_hint.setText(self._tr("idle_hint"))
+            self.idle_hint.setText(self._tr(self._idle_hint_key()))
             self.lbl_display.setText(self._tr("display_sleep"))
             self.lbl_sleep.setText(self._tr("system_sleep"))
             self.idle_display_spin.setSuffix(self._tr("minutes_suffix"))

@@ -1,6 +1,7 @@
 import math
 import os
 import platform
+import re
 import subprocess
 
 
@@ -173,11 +174,22 @@ class PowerManager:
             except subprocess.TimeoutExpired:
                 proc.kill()
 
-    # ─────────── 系统空闲睡眠设置（macOS） ───────────
+    # ─────────── 系统空闲睡眠设置 ───────────
+    @staticmethod
+    def supports_system_idle_settings():
+        """判断当前系统是否支持读取和修改空闲电源设置。"""
+        return platform.system() in ("Darwin", "Windows")
+
     @staticmethod
     def get_system_idle_settings():
-        """读取系统空闲睡眠设置，返回 (displaysleep_min, sleep_min)"""
-        if platform.system() != "Darwin":
+        """读取系统空闲设置，返回 (display_minutes, sleep_minutes)。"""
+        system = platform.system()
+        if system == "Windows":
+            return (
+                PowerManager._get_windows_timeout("SUB_VIDEO", "VIDEOIDLE"),
+                PowerManager._get_windows_timeout("SUB_SLEEP", "STANDBYIDLE"),
+            )
+        if system != "Darwin":
             return None, None
         try:
             result = subprocess.run(
@@ -203,12 +215,31 @@ class PowerManager:
 
     @staticmethod
     def set_system_idle_settings(display_min, sleep_min):
-        """写入系统空闲睡眠设置（需管理员密码）"""
-        if platform.system() != "Darwin":
-            return False
+        """写入系统空闲设置；Windows 同步设置 AC/DC 两种电源状态。"""
         try:
             if (not isinstance(display_min, int) or not isinstance(sleep_min, int)
                     or display_min < 0 or sleep_min < 0):
+                return False
+
+            if platform.system() == "Windows":
+                commands = [
+                    ["powercfg", "/change", "monitor-timeout-ac",
+                     str(display_min)],
+                    ["powercfg", "/change", "monitor-timeout-dc",
+                     str(display_min)],
+                    ["powercfg", "/change", "standby-timeout-ac",
+                     str(sleep_min)],
+                    ["powercfg", "/change", "standby-timeout-dc",
+                     str(sleep_min)],
+                ]
+                for command in commands:
+                    result = subprocess.run(
+                        command, capture_output=True, timeout=10)
+                    if result.returncode != 0:
+                        return False
+                return True
+
+            if platform.system() != "Darwin":
                 return False
             cmd = (
                 f"osascript -e 'do shell script "
@@ -221,6 +252,27 @@ class PowerManager:
             return result.returncode == 0
         except Exception:
             return False
+
+    @staticmethod
+    def _get_windows_timeout(subgroup, setting):
+        """读取 Windows 当前电源方案的 AC 空闲超时（单位：分钟）。"""
+        try:
+            result = subprocess.run(
+                ["powercfg", "/query", "SCHEME_CURRENT", subgroup, setting],
+                capture_output=True, text=True, timeout=10)
+            if result.returncode != 0:
+                return None
+
+            match = re.search(
+                r"(?:Current AC Power Setting Index|当前交流电源设置索引|当前 AC 电源设置索引):\s*0x([0-9a-fA-F]+)",
+                result.stdout,
+            )
+            if not match:
+                return None
+            seconds = int(match.group(1), 16)
+            return 0 if seconds == 0 else max(1, round(seconds / 60))
+        except (OSError, subprocess.SubprocessError, ValueError):
+            return None
 
     # ─────────── 内部工具 ───────────
     @staticmethod
@@ -253,4 +305,3 @@ class PowerManager:
             except (OSError, subprocess.SubprocessError):
                 continue
         return False
-

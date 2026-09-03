@@ -8,7 +8,7 @@ Topos Power is a cross-platform power timer built with PyQt6. It supports:
 - Scheduled sleep
 - Display-only sleep
 - Turning off the display before sleep
-- Reading and editing macOS idle display/sleep settings
+- Reading and editing macOS/Windows idle display/sleep settings
 - Preventing automatic system sleep during a countdown
 - Animated circular progress, power phase timeline, and subtle breathing effects
 - Instant Chinese and English interface switching
@@ -89,9 +89,12 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting contributions.
 pytest
 ```
 
-## macOS permissions
+## Platform notes
 
-Sleep, display control, and `pmset` changes are performed through macOS system commands. The first use may require an administrator password. Lock-screen operations may also require allowing the application to control “System Events” under System Settings → Privacy & Security → Automation/Accessibility.
+- macOS uses `pmset` and AppleScript for power operations and idle settings. The first use may require an administrator password.
+- Windows uses the built-in `powercfg` command for the active power plan. The idle settings panel synchronizes the plugged-in and battery values.
+- Linux supports the core power actions through available desktop/system commands. Idle display/sleep settings are not exposed yet because GNOME, KDE, Xfce, and other desktop environments use different configuration APIs.
+- Lock-screen operations may require additional operating-system permissions.
 
 ## Design principles
 
