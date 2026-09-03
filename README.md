@@ -35,6 +35,88 @@ Topos Power/
 └── requirements.txt
 ```
 
+## Usage guide
+
+### Scheduled shutdown
+
+1. Select **Schedule Shutdown**.
+2. Drag the execution-time slider to choose the countdown duration.
+3. Review the estimated shutdown time and click **Start countdown**.
+4. To cancel a scheduled shutdown, click **Stop task** before the countdown finishes.
+
+### Scheduled sleep
+
+1. Select **Schedule Sleep**.
+2. Choose one of the available modes:
+   - **System sleep**: put the computer to sleep when the countdown ends.
+   - **Turn off display**: turn off the display while keeping the computer running.
+   - **Display, then sleep**: optionally lock the screen, turn off the display early, and enter sleep at the end of the countdown.
+3. Enable **Prevent auto-sleep** if the countdown must continue without being interrupted by the system's idle sleep timer.
+4. On macOS and Windows, the system idle display/sleep settings can be reviewed in the settings card shown in sleep mode.
+
+### System idle settings
+
+These settings control what the operating system does after a period of keyboard/mouse inactivity. They are different from Topos Power's one-time countdown:
+
+- **Display** controls when the display turns off.
+- **Sleep** controls when the computer enters system sleep.
+- `0` means **Never**.
+- On Windows, the displayed values are from the active power plan's plugged-in profile. Saving synchronizes both plugged-in and battery profiles.
+
+## Platform support
+
+| Capability | macOS | Windows | Linux | Notes |
+| --- | :---: | :---: | :---: | --- |
+| Scheduled shutdown | ✓ | ✓ | ✓ | Uses the native shutdown scheduler |
+| Scheduled system sleep | ✓ | ✓ | ✓ | Uses the operating system sleep command |
+| Turn off display | ✓ | ✓ | ✓ | Keeps the computer running |
+| Lock screen before action | ✓ | ✓ | ✓ | Uses the native lock-screen mechanism |
+| Prevent countdown auto-sleep | ✓ | — | — | Currently implemented through macOS `caffeinate` |
+| Read idle display timeout | ✓ | ✓ | — | Linux desktop APIs are not unified |
+| Read idle sleep timeout | ✓ | ✓ | — | Linux desktop APIs are not unified |
+| Write idle display timeout | ✓ | ✓ | — | Windows writes both AC and battery profiles |
+| Write idle sleep timeout | ✓ | ✓ | — | `0` means Never |
+| Chinese / English interface | ✓ | ✓ | ✓ | Saved locally for the next launch |
+| System tray operation | ✓ | ✓ | ✓ | Depends on desktop tray support |
+
+### Native system adapters
+
+| Platform | Shutdown | Sleep | Display off | Lock screen | Idle settings |
+| --- | --- | --- | --- | --- | --- |
+| macOS | `shutdown` via AppleScript | System Events | `pmset displaysleepnow` | System Events | `pmset -g` / `pmset -a` |
+| Windows | `shutdown.exe` | `SetSuspendState` | `SC_MONITORPOWER` | `LockWorkStation` | `powercfg /query` / `powercfg /change` |
+| Linux | `shutdown` | `systemctl suspend` | `xset` / `xdg-screensaver` | `loginctl` / desktop tools | Desktop-specific; not enabled yet |
+
+### Countdown modes
+
+| Mode | At countdown end | Optional steps | Typical use |
+| --- | --- | --- | --- |
+| Scheduled shutdown | Shuts down the computer | Lock screen | Long-running task cleanup |
+| System sleep | Enters system sleep | Lock screen | Pause work and save power |
+| Display-only | Turns off the display | Lock screen | Keep downloads or services running |
+| Display, then sleep | Turns off the display early, then sleeps | Lock screen, early display-off offset | Reduce screen power while keeping a predictable sleep time |
+
+Linux desktop environments expose idle power settings through different APIs. The core actions remain available, while the unified idle-settings panel is intentionally hidden until a reliable GNOME/KDE/Xfce strategy is available.
+
+## Design overview
+
+Topos Power keeps the interface, localization, and operating-system commands separate:
+
+```text
+Qt interface
+    ├── countdown state and animated widgets
+    ├── Chinese / English localization
+    └── user actions
+             │
+             ▼
+PowerManager platform adapter
+    ├── macOS: pmset / AppleScript / caffeinate
+    ├── Windows: shutdown / powercfg / Windows API
+    └── Linux: systemctl / xset / desktop-session commands
+```
+
+The countdown is handled by the Qt event loop, while potentially blocking system operations run in background threads. The circular progress and phase timeline provide visual feedback without changing the underlying power commands.
+
 ## How to run
 
 ### Method 1: One-click launch scripts
@@ -88,6 +170,8 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting contributions.
 ```bash
 pytest
 ```
+
+For development, install the project in editable mode with `pip install -e .`, then run the test suite after changing the power manager, localization, or UI code.
 
 ## Platform notes
 
