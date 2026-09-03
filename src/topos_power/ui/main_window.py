@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QPushButton, QCheckBox,
-                             QProgressBar, QFrame, QGroupBox, QSpinBox,
+                             QFrame, QGroupBox, QSpinBox,
                              QSystemTrayIcon, QMenu, QStyle, QSlider,
                              QRadioButton, QButtonGroup, QStackedWidget,
                              QToolButton, QGraphicsOpacityEffect,
@@ -18,6 +18,7 @@ from ..config import APP_NAME
 from ..core.localization import LanguageManager
 from ..core.power_manager import PowerManager
 from .styles import SLIDER_STYLE, STYLESHEET
+from .widgets import CircularProgress, PowerPhaseTimeline
 
 
 class PowerTimer(QMainWindow):
@@ -53,9 +54,6 @@ class PowerTimer(QMainWindow):
         self.caffeinate_proc = None
         self.shutdown_operation = None
         self.cancel_after_shutdown_scheduled = False
-        self.language_manager = LanguageManager(self)
-        self.language_manager.language_changed.connect(
-            self._apply_language)
         self.language_manager = LanguageManager(self)
         self.language_manager.language_changed.connect(
             self._apply_language)
@@ -99,6 +97,20 @@ class PowerTimer(QMainWindow):
     # ═══════════ UI 构建 ═══════════
     def _tr(self, key, **values):
         return self.language_manager.text(key, **values)
+
+    def _phase_labels(self):
+        if self.current_func == self.FUNC_SHUTDOWN:
+            keys = ("phase_wait", "phase_shutdown")
+        else:
+            mode = self._get_sleep_mode() if hasattr(self, "mode_btn_group") else PowerManager.MODE_SLEEP
+            if mode == PowerManager.MODE_SCREEN_OFF:
+                keys = ("phase_wait", "phase_screen")
+            elif mode == PowerManager.MODE_BOTH:
+                keys = ("phase_wait", "phase_lock", "phase_screen",
+                        "phase_sleep")
+            else:
+                keys = ("phase_wait", "phase_sleep")
+        return [self._tr(key) for key in keys]
 
     def _setup_ui(self):
         main_widget = QWidget()
@@ -196,10 +208,10 @@ class PowerTimer(QMainWindow):
         # ── 倒计时主卡片 ──
         countdown_card = QFrame()
         countdown_card.setObjectName("Card")
-        countdown_card.setMinimumHeight(136)
+        countdown_card.setMinimumHeight(178)
         countdown_layout = QVBoxLayout(countdown_card)
         countdown_layout.setContentsMargins(16, 14, 16, 14)
-        countdown_layout.setSpacing(7)
+        countdown_layout.setSpacing(5)
 
         countdown_header = QHBoxLayout()
         self.eyebrow = QLabel(self._tr("next_action"))
@@ -213,27 +225,38 @@ class PowerTimer(QMainWindow):
         countdown_header.addWidget(self.status_badge)
         countdown_layout.addLayout(countdown_header)
 
+        countdown_body = QHBoxLayout()
+        countdown_body.setContentsMargins(0, 0, 0, 0)
+        countdown_body.setSpacing(16)
+
+        self.pbar = CircularProgress()
+        self.pbar.setValue(0)
+        countdown_body.addWidget(self.pbar)
+
+        time_column = QVBoxLayout()
+        time_column.setContentsMargins(0, 0, 0, 0)
+        time_column.setSpacing(4)
+
         self.time_label = QLabel("00:00:00")
         self.time_label.setObjectName("TimeValue")
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.time_label.setMinimumHeight(58)
         self.time_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        countdown_layout.addWidget(self.time_label)
+        time_column.addWidget(self.time_label)
 
-        self.pbar = QProgressBar()
-        self.pbar.setObjectName("CountdownProgress")
-        self.pbar.setValue(0)
-        self.pbar.setTextVisible(False)
-        countdown_layout.addWidget(self.pbar)
-
-        target_row = QHBoxLayout()
         self.exec_time_label = QLabel("")
         self.exec_time_label.setObjectName("CountdownTarget")
         self.exec_time_label.setAlignment(
             Qt.AlignmentFlag.AlignCenter)
-        target_row.addWidget(self.exec_time_label)
-        countdown_layout.addLayout(target_row)
+        time_column.addWidget(self.exec_time_label)
+        time_column.addStretch()
+        countdown_body.addLayout(time_column, 1)
+        countdown_layout.addLayout(countdown_body)
+
+        self.phase_timeline = PowerPhaseTimeline()
+        self.phase_timeline.set_phases(self._phase_labels())
+        countdown_layout.addWidget(self.phase_timeline)
         layout.addWidget(countdown_card)
 
         # ── 时间设置卡片 ──
@@ -496,6 +519,8 @@ class PowerTimer(QMainWindow):
             self._tr("shutdown_summary")
             if func == self.FUNC_SHUTDOWN else self._tr("sleep_summary"))
         self._animate_options_transition()
+        self.phase_timeline.set_phases(self._phase_labels())
+        self.phase_timeline.set_active(0)
 
         # macOS 空闲设置仅睡眠模式可见
         if self.idle_group:
@@ -625,6 +650,8 @@ class PowerTimer(QMainWindow):
             PowerManager.MODE_BOTH: self._tr("both_mode"),
         }
         self.options_summary.setText(mode_names[mode])
+        self.phase_timeline.set_phases(self._phase_labels())
+        self.phase_timeline.set_active(0)
         self._update_exec_time_hint()
 
     def _show_help(self):
@@ -687,6 +714,8 @@ class PowerTimer(QMainWindow):
         self.screen_off_done = False
         self.screen_off_in_progress = False
         self.pending_both_sleep = False
+        self.phase_timeline.set_phases(self._phase_labels())
+        self.phase_timeline.set_active(0)
 
         if self.current_func == self.FUNC_SHUTDOWN:
             # 关机模式：调度系统级关机
@@ -761,6 +790,8 @@ class PowerTimer(QMainWindow):
             elif self.is_running:
                 self.timer_id.start(1000)
                 self._update_countdown()
+                self.phase_timeline.set_active(
+                    self.phase_timeline.phase_count() - 1)
                 exec_time = (datetime.now()
                              + timedelta(seconds=self.total_duration))
                 self.status_label.setText(
@@ -854,6 +885,8 @@ class PowerTimer(QMainWindow):
         }
         if success:
             message, color = messages[operation]
+            self.phase_timeline.set_active(
+                self.phase_timeline.phase_count() - 1)
         else:
             message, color = failures.get(
                 operation, self._tr("power_failed")), "#f85149"
@@ -868,6 +901,7 @@ class PowerTimer(QMainWindow):
         if self.timer_id:
             self.timer_id.stop()
         self.target_time = None
+        self.phase_timeline.set_active(-1)
 
         self.is_running = False
         self._set_controls_enabled(True)
@@ -894,6 +928,7 @@ class PowerTimer(QMainWindow):
                 # 在后台线程执行，避免阻塞 UI
                 lock = self.lock_checkbox.isChecked()
                 self.screen_off_in_progress = True
+                self.phase_timeline.set_active(2)
                 threading.Thread(
                     target=self._run_power_action,
                     args=(PowerManager.MODE_SCREEN_OFF, lock,
@@ -918,6 +953,8 @@ class PowerTimer(QMainWindow):
                 self.status_label.setText(self._tr("shutdown_executed"))
             else:
                 mode = self._get_sleep_mode()
+                self.phase_timeline.set_active(
+                    self.phase_timeline.phase_count() - 1)
                 if mode == PowerManager.MODE_SLEEP:
                     lock = self.lock_checkbox.isChecked()
                     threading.Thread(
