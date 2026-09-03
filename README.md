@@ -1,5 +1,7 @@
 # Topos Power
 
+[中文](README.md) | [English](README.en.md)
+
 Topos Power 是一个基于 PyQt6 的跨平台电源定时工具，支持：
 
 - 定时关机
