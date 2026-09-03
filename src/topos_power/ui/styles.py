@@ -351,9 +351,9 @@ QLabel#CardTitle {
 
 QLabel#TimeValue {
     color: #f5f5f7;
-    font-size: 54px;
+    font-size: 44px;
     font-weight: 500;
-    letter-spacing: 1px;
+    letter-spacing: 0px;
 }
 
 QLabel#CountdownTarget {
@@ -394,6 +394,8 @@ QFrame#Divider {
 QRadioButton, QCheckBox {
     color: #d9dce3;
     spacing: 8px;
+    min-height: 22px;
+    padding: 0px;
 }
 
 QRadioButton:hover, QCheckBox:hover {
@@ -438,6 +440,25 @@ QPushButton#SystemAction:hover {
 QLabel#StatusLabel {
     color: #8d9099;
     font-size: 11px;
+    min-height: 18px;
+}
+
+QPushButton#HelpButton {
+    background-color: transparent;
+    border: 1px solid #343842;
+    border-radius: 8px;
+    color: #aeb4c0;
+    min-height: 30px;
+    padding: 3px 12px;
+}
+
+QPushButton#HelpButton:hover {
+    background-color: #23262e;
+    color: #ffffff;
+}
+
+QPushButton#HelpButton:pressed {
+    background-color: #2b2f38;
 }
 
 QGroupBox#SystemSettingsCard {

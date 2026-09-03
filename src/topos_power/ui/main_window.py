@@ -8,7 +8,8 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QProgressBar, QFrame, QGroupBox, QSpinBox,
                              QSystemTrayIcon, QMenu, QStyle, QSlider,
                              QRadioButton, QButtonGroup, QStackedWidget,
-                             QToolButton, QGraphicsOpacityEffect)
+                             QToolButton, QGraphicsOpacityEffect,
+                             QSizePolicy, QMessageBox)
 from PyQt6.QtCore import (Qt, QTimer, pyqtSignal, QPropertyAnimation,
                           QEasingCurve)
 from PyQt6.QtGui import QIcon, QFont
@@ -33,8 +34,8 @@ class PowerTimer(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} - 电源定时工具")
-        self.setMinimumSize(560, 700)
-        self.resize(600, 780)
+        self.setMinimumSize(560, 680)
+        self.resize(620, 800)
 
         self.setStyleSheet(STYLESHEET)
 
@@ -95,15 +96,15 @@ class PowerTimer(QMainWindow):
         self.setCentralWidget(main_widget)
 
         layout = QVBoxLayout(main_widget)
-        layout.setContentsMargins(28, 22, 28, 18)
-        layout.setSpacing(14)
+        layout.setContentsMargins(22, 16, 22, 14)
+        layout.setSpacing(10)
 
         # ── 品牌头部 ──
         header_frame = QFrame()
         header_frame.setObjectName("HeaderFrame")
         header_layout = QHBoxLayout(header_frame)
         header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(10)
+        header_layout.setSpacing(9)
 
         brand_mark = QLabel("⌁")
         brand_mark.setObjectName("BrandMark")
@@ -161,8 +162,8 @@ class PowerTimer(QMainWindow):
         countdown_card = QFrame()
         countdown_card.setObjectName("Card")
         countdown_layout = QVBoxLayout(countdown_card)
-        countdown_layout.setContentsMargins(20, 18, 20, 18)
-        countdown_layout.setSpacing(10)
+        countdown_layout.setContentsMargins(16, 14, 16, 14)
+        countdown_layout.setSpacing(7)
 
         countdown_header = QHBoxLayout()
         eyebrow = QLabel("NEXT ACTION")
@@ -179,6 +180,9 @@ class PowerTimer(QMainWindow):
         self.time_label = QLabel("00:00:00")
         self.time_label.setObjectName("TimeValue")
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.time_label.setMinimumHeight(58)
+        self.time_label.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         countdown_layout.addWidget(self.time_label)
 
         self.pbar = QProgressBar()
@@ -200,8 +204,8 @@ class PowerTimer(QMainWindow):
         settings_card = QFrame()
         settings_card.setObjectName("Card")
         settings_layout = QVBoxLayout(settings_card)
-        settings_layout.setContentsMargins(20, 18, 20, 18)
-        settings_layout.setSpacing(10)
+        settings_layout.setContentsMargins(16, 14, 16, 14)
+        settings_layout.setSpacing(7)
 
         settings_header = QHBoxLayout()
         settings_title = QLabel("执行时间")
@@ -240,8 +244,9 @@ class PowerTimer(QMainWindow):
         self.options_card = QFrame()
         self.options_card.setObjectName("Card")
         options_card_layout = QVBoxLayout(self.options_card)
-        options_card_layout.setContentsMargins(20, 16, 20, 16)
-        options_card_layout.setSpacing(8)
+        options_card_layout.setContentsMargins(16, 13, 16, 13)
+        options_card_layout.setSpacing(5)
+        self.options_card.setMinimumHeight(108)
 
         options_header = QHBoxLayout()
         options_title = QLabel("操作选项")
@@ -255,6 +260,7 @@ class PowerTimer(QMainWindow):
 
         self.options_stack = QStackedWidget()
         self.options_stack.setObjectName("OptionsStack")
+        self.options_stack.setMinimumHeight(65)
         self.options_opacity = QGraphicsOpacityEffect(self.options_stack)
         self.options_stack.setGraphicsEffect(self.options_opacity)
         self.options_opacity.setOpacity(1.0)
@@ -277,7 +283,7 @@ class PowerTimer(QMainWindow):
         sleep_options = QFrame()
         sl_layout = QVBoxLayout(sleep_options)
         sl_layout.setContentsMargins(0, 4, 0, 0)
-        sl_layout.setSpacing(6)
+        sl_layout.setSpacing(4)
 
         self.mode_btn_group = QButtonGroup(self)
         radio_row = QHBoxLayout()
@@ -305,7 +311,7 @@ class PowerTimer(QMainWindow):
         offset_layout = QHBoxLayout(self.screen_offset_frame)
         offset_layout.setContentsMargins(20, 2, 0, 0)
 
-        offset_label = QLabel("提前关闭显示器")
+        offset_label = QLabel("提前关屏")
         offset_label.setObjectName("SecondaryText")
         offset_layout.addWidget(offset_label)
 
@@ -317,15 +323,15 @@ class PowerTimer(QMainWindow):
             self._update_exec_time_hint)
         offset_layout.addWidget(self.screen_offset_spin)
 
-        offset_suffix = QLabel("后进入睡眠")
+        offset_suffix = QLabel("后睡眠")
         offset_suffix.setObjectName("SecondaryText")
         offset_layout.addWidget(offset_suffix)
         offset_layout.addStretch()
         self.screen_offset_frame.setVisible(False)
-        sl_layout.addWidget(self.screen_offset_frame)
 
         options_row = QHBoxLayout()
-        options_row.setSpacing(18)
+        options_row.setSpacing(14)
+        options_row.addWidget(self.screen_offset_frame)
         self.lock_checkbox = QCheckBox("操作前锁定屏幕")
         self.lock_checkbox.setChecked(True)
         options_row.addWidget(self.lock_checkbox)
@@ -398,18 +404,25 @@ class PowerTimer(QMainWindow):
         self.action_btn.clicked.connect(self._toggle_action)
         layout.addWidget(self.action_btn)
 
+        # ── 底部操作栏 ──
         self.info_text = QLabel()
         self.info_text.setWordWrap(True)
         self.info_text.setObjectName("SecondaryText")
-        self.info_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.info_text)
+        self.help_btn = QPushButton("帮助")
+        self.help_btn.setObjectName("HelpButton")
+        self.help_btn.setToolTip("查看使用说明和权限提示")
+        self.help_btn.clicked.connect(self._show_help)
 
-        layout.addStretch()
+        footer_layout = QHBoxLayout()
+        footer_layout.setContentsMargins(0, 0, 0, 0)
+        footer_layout.addWidget(self.help_btn)
+        footer_layout.addStretch()
 
         self.status_label = QLabel("就绪")
         self.status_label.setObjectName("StatusLabel")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.status_label)
+        footer_layout.addWidget(self.status_label)
+        layout.addLayout(footer_layout)
 
         self._update_button_state()
         self._update_exec_time_hint()
@@ -509,6 +522,18 @@ class PowerTimer(QMainWindow):
         }
         self.options_summary.setText(mode_names[mode])
         self._update_exec_time_hint()
+
+    def _show_help(self):
+        """按需显示帮助内容，避免帮助文字长期占用主界面空间。"""
+        QMessageBox.information(
+            self,
+            f"{APP_NAME} 帮助",
+            f"{self.info_text.text()}\n\n"
+            "权限提示：\n"
+            "• macOS 关机和系统空闲设置可能需要管理员密码。\n"
+            "• 锁屏操作需要允许应用控制“系统事件”。\n"
+            "• 关闭窗口后任务会继续在菜单栏托盘运行。",
+        )
 
     def _update_info_text(self):
         if self.current_func == self.FUNC_SHUTDOWN:
