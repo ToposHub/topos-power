@@ -13,6 +13,13 @@ Topos Power is a cross-platform power timer built with PyQt6. It supports:
 - Animated circular progress, power phase timeline, and subtle breathing effects
 - Instant Chinese and English interface switching
 
+## Screenshots
+
+<p align="center">
+  <img src="assets/screenshots/scheduled-shutdown.png" alt="Scheduled shutdown interface" width="48%">
+  <img src="assets/screenshots/scheduled-sleep.png" alt="Scheduled sleep interface" width="48%">
+</p>
+
 ## Project structure
 
 ```text
@@ -28,7 +35,21 @@ Topos Power/
 └── requirements.txt
 ```
 
-## Run locally
+## How to run
+
+### Method 1: One-click launch scripts
+
+On macOS, double-click `run_topos.command` in the project root. If macOS blocks the script, run it from Terminal:
+
+```bash
+./run_topos.command
+```
+
+On Windows, double-click `run_topos.bat` in the project root.
+
+Both scripts prefer the project's `.venv` and support the `src` layout automatically.
+
+### Method 2: Traditional Python launch
 
 ```bash
 cd "Topos Power"
@@ -37,8 +58,6 @@ source .venv/bin/activate
 pip install -e .
 python -m topos_power
 ```
-
-On macOS, you can also double-click `run_topos.command`. On Windows, use `run_topos.bat`. Both scripts prefer the project's `.venv` and support the `src` layout automatically.
 
 You can also install the command-line entry point:
 

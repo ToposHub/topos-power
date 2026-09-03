@@ -13,6 +13,13 @@ Topos Power 是一个基于 PyQt6 的跨平台电源定时工具，支持：
 - 环形倒计时进度、阶段时间线与轻量呼吸动画
 - 中英文界面即时切换
 
+## 界面预览
+
+<p align="center">
+  <img src="assets/screenshots/scheduled-shutdown.png" alt="定时关机界面" width="48%">
+  <img src="assets/screenshots/scheduled-sleep.png" alt="定时睡眠界面" width="48%">
+</p>
+
 ## 项目结构
 
 ```text
@@ -28,7 +35,21 @@ Topos Power/
 └── requirements.txt
 ```
 
-## 本地运行
+## 运行方式
+
+### 方法一：一键启动
+
+macOS：双击项目根目录中的 `run_topos.command` 即可启动。如果系统阻止执行，也可以在终端运行：
+
+```bash
+./run_topos.command
+```
+
+Windows：双击项目根目录中的 `run_topos.bat` 即可启动。
+
+两个启动脚本都会优先使用项目中的 `.venv`，并自动处理 `src` 布局。
+
+### 方法二：传统 Python 启动
 
 ```bash
 cd "Topos Power"
@@ -37,8 +58,6 @@ source .venv/bin/activate
 pip install -e .
 python -m topos_power
 ```
-
-macOS 也可以双击项目根目录中的 `run_topos.command` 启动；Windows 使用 `run_topos.bat`。两个脚本都会优先使用项目中的 `.venv`，并自动处理 `src` 布局。
 
 也可以安装命令行入口：
 
