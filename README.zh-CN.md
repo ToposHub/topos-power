@@ -16,8 +16,8 @@ Topos Power 是一个基于 PyQt6 的跨平台电源定时工具，支持：
 ## 界面预览
 
 <p align="center">
-  <img src="assets/screenshots/scheduled-shutdown.png" alt="定时关机界面" width="48%">
-  <img src="assets/screenshots/scheduled-sleep.png" alt="定时睡眠界面" width="48%">
+  <img src="assets/screenshots/scheduled-shutdown-zh-CN.png" alt="定时关机界面" width="48%">
+  <img src="assets/screenshots/scheduled-sleep-zh-CN.png" alt="定时睡眠界面" width="48%">
 </p>
 
 ## 项目结构
