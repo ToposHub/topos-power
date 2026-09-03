@@ -16,6 +16,7 @@ Topos Power/
 ├── src/topos_power/
 │   ├── app.py                 # 应用入口
 │   ├── config.py              # 应用名称与版本
+│   ├── core/localization.py   # 中文/英文界面文案
 │   ├── core/power_manager.py  # 跨平台系统电源能力
 │   └── ui/                    # Qt 界面与样式
 ├── tests/                     # 自动化测试
@@ -40,6 +41,10 @@ macOS 也可以双击项目根目录中的 `run_topos.command` 启动；Windows 
 ```bash
 topos-power
 ```
+
+## 界面语言
+
+应用顶部右侧提供中文和 English 两种语言选择。选择会立即刷新界面，并保存在本机，下次启动时自动使用上次的语言。
 
 运行测试：
 

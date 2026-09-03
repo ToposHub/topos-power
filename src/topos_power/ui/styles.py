@@ -448,8 +448,8 @@ QPushButton#HelpButton {
     border: 1px solid #343842;
     border-radius: 8px;
     color: #aeb4c0;
-    min-height: 30px;
-    padding: 3px 12px;
+    min-height: 22px;
+    padding: 2px 10px;
 }
 
 QPushButton#HelpButton:hover {
@@ -459,6 +459,33 @@ QPushButton#HelpButton:hover {
 
 QPushButton#HelpButton:pressed {
     background-color: #2b2f38;
+}
+
+QComboBox#LanguageCombo {
+    background-color: #20232b;
+    border: 1px solid #343842;
+    border-radius: 8px;
+    color: #c8ccd5;
+    min-height: 22px;
+    min-width: 48px;
+    padding: 2px 16px 2px 8px;
+}
+
+QComboBox#LanguageCombo:hover, QComboBox#LanguageCombo:focus {
+    border-color: #3478f6;
+    color: #ffffff;
+}
+
+QComboBox#LanguageCombo::drop-down {
+    border: none;
+    width: 20px;
+}
+
+QComboBox#LanguageCombo QAbstractItemView {
+    background-color: #20232b;
+    border: 1px solid #343842;
+    color: #f5f5f7;
+    selection-background-color: #3478f6;
 }
 
 QGroupBox#SystemSettingsCard {

@@ -9,12 +9,13 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QSystemTrayIcon, QMenu, QStyle, QSlider,
                              QRadioButton, QButtonGroup, QStackedWidget,
                              QToolButton, QGraphicsOpacityEffect,
-                             QSizePolicy, QMessageBox)
+                             QSizePolicy, QMessageBox, QComboBox)
 from PyQt6.QtCore import (Qt, QTimer, pyqtSignal, QPropertyAnimation,
                           QEasingCurve)
 from PyQt6.QtGui import QIcon, QFont
 
 from ..config import APP_NAME
+from ..core.localization import LanguageManager
 from ..core.power_manager import PowerManager
 from .styles import SLIDER_STYLE, STYLESHEET
 
@@ -34,7 +35,7 @@ class PowerTimer(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} - 电源定时工具")
-        self.setMinimumSize(560, 680)
+        self.setMinimumSize(560, 760)
         self.resize(620, 800)
 
         self.setStyleSheet(STYLESHEET)
@@ -52,6 +53,12 @@ class PowerTimer(QMainWindow):
         self.caffeinate_proc = None
         self.shutdown_operation = None
         self.cancel_after_shutdown_scheduled = False
+        self.language_manager = LanguageManager(self)
+        self.language_manager.language_changed.connect(
+            self._apply_language)
+        self.language_manager = LanguageManager(self)
+        self.language_manager.language_changed.connect(
+            self._apply_language)
         self.shutdown_operation_finished.connect(
             self._on_shutdown_operation_finished)
         self.sleep_operation_finished.connect(
@@ -72,11 +79,11 @@ class PowerTimer(QMainWindow):
         self.tray_icon = QSystemTrayIcon(icon, self)
 
         tray_menu = QMenu()
-        toggle_action = tray_menu.addAction("显示/隐藏")
-        toggle_action.triggered.connect(self._toggle_window)
+        self.tray_toggle_action = tray_menu.addAction("显示/隐藏")
+        self.tray_toggle_action.triggered.connect(self._toggle_window)
         tray_menu.addSeparator()
-        quit_action = tray_menu.addAction("退出")
-        quit_action.triggered.connect(self._quit_app)
+        self.tray_quit_action = tray_menu.addAction("退出")
+        self.tray_quit_action.triggered.connect(self._quit_app)
 
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.show()
@@ -90,6 +97,9 @@ class PowerTimer(QMainWindow):
             self.hide()
 
     # ═══════════ UI 构建 ═══════════
+    def _tr(self, key, **values):
+        return self.language_manager.text(key, **values)
+
     def _setup_ui(self):
         main_widget = QWidget()
         main_widget.setObjectName("AppSurface")
@@ -102,6 +112,7 @@ class PowerTimer(QMainWindow):
         # ── 品牌头部 ──
         header_frame = QFrame()
         header_frame.setObjectName("HeaderFrame")
+        header_frame.setFixedHeight(44)
         header_layout = QHBoxLayout(header_frame)
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(9)
@@ -114,10 +125,10 @@ class PowerTimer(QMainWindow):
         title_column.setSpacing(0)
         title_text = QLabel(APP_NAME)
         title_text.setObjectName("BrandTitle")
-        subtitle = QLabel("让每一次离开，都有一个明确的时间")
-        subtitle.setObjectName("BrandSubtitle")
+        self.subtitle = QLabel(self._tr("brand_subtitle"))
+        self.subtitle.setObjectName("BrandSubtitle")
         title_column.addWidget(title_text)
-        title_column.addWidget(subtitle)
+        title_column.addWidget(self.subtitle)
         header_layout.addLayout(title_column)
         header_layout.addStretch()
 
@@ -128,19 +139,42 @@ class PowerTimer(QMainWindow):
         }.get(platform.system(), platform.system())
         platform_badge = QLabel(platform_name)
         platform_badge.setObjectName("PlatformBadge")
+        platform_badge.setFixedSize(68, 30)
         header_layout.addWidget(platform_badge)
+
+        self.help_btn = QPushButton(self._tr("help"))
+        self.help_btn.setObjectName("HelpButton")
+        self.help_btn.setFixedSize(56, 30)
+        self.help_btn.setToolTip(self._tr("help_tip"))
+        self.help_btn.clicked.connect(self._show_help)
+        header_layout.addWidget(self.help_btn)
+
+        self.language_combo = QComboBox()
+        self.language_combo.setObjectName("LanguageCombo")
+        self.language_combo.setFixedSize(90, 30)
+        for code, label in LanguageManager.languages:
+            self.language_combo.addItem(label, code)
+        current_index = self.language_combo.findData(
+            self.language_manager.language)
+        if current_index >= 0:
+            self.language_combo.setCurrentIndex(current_index)
+        self.language_combo.currentIndexChanged.connect(
+            self._on_language_changed)
+        header_layout.addWidget(self.language_combo)
         layout.addWidget(header_frame)
 
         # ── 顶层功能切换 ──
         switch_frame = QFrame()
         switch_frame.setObjectName("ModeBar")
+        switch_frame.setFixedHeight(46)
         switch_layout = QHBoxLayout(switch_frame)
         switch_layout.setContentsMargins(4, 4, 4, 4)
         switch_layout.setSpacing(4)
 
         self.btn_shutdown = QToolButton()
         self.btn_shutdown.setObjectName("ModeSwitch")
-        self.btn_shutdown.setText("定时关机")
+        self.btn_shutdown.setFixedHeight(36)
+        self.btn_shutdown.setText(self._tr("tab_shutdown"))
         self.btn_shutdown.setCheckable(True)
         self.btn_shutdown.setChecked(True)
         self.btn_shutdown.clicked.connect(
@@ -148,7 +182,8 @@ class PowerTimer(QMainWindow):
 
         self.btn_sleep = QToolButton()
         self.btn_sleep.setObjectName("ModeSwitch")
-        self.btn_sleep.setText("定时睡眠")
+        self.btn_sleep.setFixedHeight(36)
+        self.btn_sleep.setText(self._tr("tab_sleep"))
         self.btn_sleep.setCheckable(True)
         self.btn_sleep.setChecked(False)
         self.btn_sleep.clicked.connect(
@@ -161,17 +196,18 @@ class PowerTimer(QMainWindow):
         # ── 倒计时主卡片 ──
         countdown_card = QFrame()
         countdown_card.setObjectName("Card")
+        countdown_card.setMinimumHeight(136)
         countdown_layout = QVBoxLayout(countdown_card)
         countdown_layout.setContentsMargins(16, 14, 16, 14)
         countdown_layout.setSpacing(7)
 
         countdown_header = QHBoxLayout()
-        eyebrow = QLabel("NEXT ACTION")
-        eyebrow.setObjectName("CardEyebrow")
-        countdown_header.addWidget(eyebrow)
+        self.eyebrow = QLabel(self._tr("next_action"))
+        self.eyebrow.setObjectName("CardEyebrow")
+        countdown_header.addWidget(self.eyebrow)
         countdown_header.addStretch()
 
-        self.status_badge = QLabel("待机")
+        self.status_badge = QLabel(self._tr("ready"))
         self.status_badge.setObjectName("StatusBadge")
         self.status_badge.setProperty("state", "ready")
         countdown_header.addWidget(self.status_badge)
@@ -208,19 +244,20 @@ class PowerTimer(QMainWindow):
         settings_layout.setSpacing(7)
 
         settings_header = QHBoxLayout()
-        settings_title = QLabel("执行时间")
-        settings_title.setObjectName("CardTitle")
-        settings_header.addWidget(settings_title)
+        self.settings_title = QLabel(self._tr("execution_time"))
+        self.settings_title.setObjectName("CardTitle")
+        settings_header.addWidget(self.settings_title)
         settings_header.addStretch()
 
-        self.slider_value_label = QLabel("1小时")
+        self.slider_value_label = QLabel(
+            self._tr("duration_hours", hours=1))
         self.slider_value_label.setObjectName("LargeSettingValue")
         settings_header.addWidget(self.slider_value_label)
         settings_layout.addLayout(settings_header)
 
-        setting_caption = QLabel("倒计时结束后执行当前选中的操作")
-        setting_caption.setObjectName("SettingCaption")
-        settings_layout.addWidget(setting_caption)
+        self.setting_caption = QLabel(self._tr("execution_caption"))
+        self.setting_caption.setObjectName("SettingCaption")
+        settings_layout.addWidget(self.setting_caption)
 
         self.custom_slider = QSlider(Qt.Orientation.Horizontal)
         self.custom_slider.setRange(1, 1440)
@@ -230,37 +267,40 @@ class PowerTimer(QMainWindow):
         settings_layout.addWidget(self.custom_slider)
 
         slider_bounds = QHBoxLayout()
-        min_caption = QLabel("1 分钟")
-        min_caption.setObjectName("SecondaryText")
-        max_caption = QLabel("24 小时")
-        max_caption.setObjectName("SecondaryText")
-        slider_bounds.addWidget(min_caption)
+        self.min_caption = QLabel(self._tr("one_minute"))
+        self.min_caption.setObjectName("SecondaryText")
+        self.max_caption = QLabel(self._tr("twenty_four_hours"))
+        self.max_caption.setObjectName("SecondaryText")
+        slider_bounds.addWidget(self.min_caption)
         slider_bounds.addStretch()
-        slider_bounds.addWidget(max_caption)
+        slider_bounds.addWidget(self.max_caption)
         settings_layout.addLayout(slider_bounds)
         layout.addWidget(settings_card)
 
         # ── 模式选项卡片 ──
         self.options_card = QFrame()
         self.options_card.setObjectName("Card")
+        self.options_card.setFixedHeight(124)
         options_card_layout = QVBoxLayout(self.options_card)
         options_card_layout.setContentsMargins(16, 13, 16, 13)
         options_card_layout.setSpacing(5)
         self.options_card.setMinimumHeight(108)
 
         options_header = QHBoxLayout()
-        options_title = QLabel("操作选项")
-        options_title.setObjectName("CardTitle")
-        options_header.addWidget(options_title)
+        self.options_title = QLabel(self._tr("options"))
+        self.options_title.setObjectName("CardTitle")
+        options_header.addWidget(self.options_title)
         options_header.addStretch()
-        self.options_summary = QLabel("关机")
+        self.options_summary = QLabel(self._tr("shutdown_summary"))
         self.options_summary.setObjectName("SecondaryText")
         options_header.addWidget(self.options_summary)
         options_card_layout.addLayout(options_header)
 
         self.options_stack = QStackedWidget()
         self.options_stack.setObjectName("OptionsStack")
-        self.options_stack.setMinimumHeight(65)
+        self.options_stack.setFixedHeight(70)
+        self.options_stack.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.options_opacity = QGraphicsOpacityEffect(self.options_stack)
         self.options_stack.setGraphicsEffect(self.options_opacity)
         self.options_opacity.setOpacity(1.0)
@@ -271,11 +311,10 @@ class PowerTimer(QMainWindow):
         sd_layout.setContentsMargins(0, 4, 0, 0)
         sd_layout.setSpacing(4)
 
-        sd_hint = QLabel(
-            "倒计时结束后系统将自动关机。首次使用可能需要输入管理员密码。")
-        sd_hint.setWordWrap(True)
-        sd_hint.setObjectName("SecondaryText")
-        sd_layout.addWidget(sd_hint)
+        self.sd_hint = QLabel(self._tr("shutdown_hint"))
+        self.sd_hint.setWordWrap(True)
+        self.sd_hint.setObjectName("SecondaryText")
+        sd_layout.addWidget(self.sd_hint)
         sd_layout.addStretch()
         self.options_stack.addWidget(shutdown_options)
 
@@ -289,19 +328,19 @@ class PowerTimer(QMainWindow):
         radio_row = QHBoxLayout()
         radio_row.setSpacing(12)
 
-        self.radio_sleep = QRadioButton("系统睡眠")
-        self.radio_sleep.setToolTip("电脑进入睡眠状态")
+        self.radio_sleep = QRadioButton(self._tr("sleep_mode"))
+        self.radio_sleep.setToolTip(self._tr("sleep_mode"))
         self.radio_sleep.setChecked(True)
         self.mode_btn_group.addButton(self.radio_sleep, 0)
         radio_row.addWidget(self.radio_sleep)
 
-        self.radio_screen = QRadioButton("关闭屏幕")
-        self.radio_screen.setToolTip("仅关闭显示器，电脑保持运行")
+        self.radio_screen = QRadioButton(self._tr("screen_mode"))
+        self.radio_screen.setToolTip(self._tr("screen_mode_tip"))
         self.mode_btn_group.addButton(self.radio_screen, 1)
         radio_row.addWidget(self.radio_screen)
 
-        self.radio_both = QRadioButton("关屏后睡眠")
-        self.radio_both.setToolTip("先关闭显示器，等待后再进入睡眠")
+        self.radio_both = QRadioButton(self._tr("both_mode"))
+        self.radio_both.setToolTip(self._tr("both_mode_tip"))
         self.mode_btn_group.addButton(self.radio_both, 2)
         radio_row.addWidget(self.radio_both)
         radio_row.addStretch()
@@ -309,34 +348,41 @@ class PowerTimer(QMainWindow):
 
         self.screen_offset_frame = QFrame()
         offset_layout = QHBoxLayout(self.screen_offset_frame)
-        offset_layout.setContentsMargins(20, 2, 0, 0)
+        offset_layout.setContentsMargins(8, 1, 4, 1)
 
-        offset_label = QLabel("提前关屏")
-        offset_label.setObjectName("SecondaryText")
-        offset_layout.addWidget(offset_label)
+        self.offset_label = QLabel(self._tr("offset_label"))
+        self.offset_label.setObjectName("SecondaryText")
+        offset_layout.addWidget(self.offset_label)
 
         self.screen_offset_spin = QSpinBox()
         self.screen_offset_spin.setRange(1, 60)
         self.screen_offset_spin.setValue(5)
-        self.screen_offset_spin.setSuffix(" 分钟")
+        self.screen_offset_spin.setSuffix(self._tr("minutes_suffix"))
         self.screen_offset_spin.valueChanged.connect(
             self._update_exec_time_hint)
         offset_layout.addWidget(self.screen_offset_spin)
 
-        offset_suffix = QLabel("后睡眠")
-        offset_suffix.setObjectName("SecondaryText")
-        offset_layout.addWidget(offset_suffix)
+        self.offset_suffix = QLabel(self._tr("offset_suffix"))
+        self.offset_suffix.setObjectName("SecondaryText")
+        offset_layout.addWidget(self.offset_suffix)
         offset_layout.addStretch()
         self.screen_offset_frame.setVisible(False)
+        self.screen_offset_frame.setMinimumWidth(184)
+        self.screen_offset_frame.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
         options_row = QHBoxLayout()
-        options_row.setSpacing(14)
+        options_row.setSpacing(10)
         options_row.addWidget(self.screen_offset_frame)
-        self.lock_checkbox = QCheckBox("操作前锁定屏幕")
+        self.lock_checkbox = QCheckBox(self._tr("lock_screen"))
         self.lock_checkbox.setChecked(True)
+        self.lock_checkbox.setMinimumWidth(132)
         options_row.addWidget(self.lock_checkbox)
-        self.prevent_sleep_checkbox = QCheckBox("倒计时期间阻止自动睡眠")
+        self.prevent_sleep_checkbox = QCheckBox(self._tr("prevent_sleep"))
+        self.prevent_sleep_checkbox.setToolTip(
+            self._tr("prevent_sleep_tip"))
         self.prevent_sleep_checkbox.setChecked(True)
+        self.prevent_sleep_checkbox.setMinimumWidth(135)
         options_row.addWidget(self.prevent_sleep_checkbox)
         options_row.addStretch()
         sl_layout.addLayout(options_row)
@@ -349,45 +395,44 @@ class PowerTimer(QMainWindow):
         # ── macOS 系统空闲睡眠设置 ──
         self.idle_group = None
         if platform.system() == "Darwin":
-            self.idle_group = QGroupBox("系统空闲睡眠")
+            self.idle_group = QGroupBox(self._tr("idle_title"))
             self.idle_group.setObjectName("SystemSettingsCard")
             idle_layout = QVBoxLayout(self.idle_group)
             idle_layout.setSpacing(8)
 
-            idle_hint = QLabel(
-                "永久生效，0 = 永不。保存时需要输入管理员密码。")
-            idle_hint.setObjectName("SecondaryText")
-            idle_hint.setWordWrap(True)
-            idle_layout.addWidget(idle_hint)
+            self.idle_hint = QLabel(self._tr("idle_hint"))
+            self.idle_hint.setObjectName("SecondaryText")
+            self.idle_hint.setWordWrap(True)
+            idle_layout.addWidget(self.idle_hint)
 
             idle_row = QHBoxLayout()
             idle_row.setSpacing(12)
 
-            lbl_display = QLabel("关屏")
-            lbl_display.setObjectName("SettingCaption")
-            idle_row.addWidget(lbl_display)
+            self.lbl_display = QLabel(self._tr("display_sleep"))
+            self.lbl_display.setObjectName("SettingCaption")
+            idle_row.addWidget(self.lbl_display)
 
             self.idle_display_spin = QSpinBox()
             self.idle_display_spin.setRange(0, 10080)
             self.idle_display_spin.setValue(10)
-            self.idle_display_spin.setSuffix(" 分钟")
-            self.idle_display_spin.setSpecialValueText("永不")
+            self.idle_display_spin.setSuffix(self._tr("minutes_suffix"))
+            self.idle_display_spin.setSpecialValueText(self._tr("never"))
             idle_row.addWidget(self.idle_display_spin)
 
-            lbl_sleep = QLabel("睡眠")
-            lbl_sleep.setObjectName("SettingCaption")
+            self.lbl_sleep = QLabel(self._tr("system_sleep"))
+            self.lbl_sleep.setObjectName("SettingCaption")
             idle_row.addSpacing(8)
-            idle_row.addWidget(lbl_sleep)
+            idle_row.addWidget(self.lbl_sleep)
 
             self.idle_sleep_spin = QSpinBox()
             self.idle_sleep_spin.setRange(0, 10080)
             self.idle_sleep_spin.setValue(30)
-            self.idle_sleep_spin.setSuffix(" 分钟")
-            self.idle_sleep_spin.setSpecialValueText("永不")
+            self.idle_sleep_spin.setSuffix(self._tr("minutes_suffix"))
+            self.idle_sleep_spin.setSpecialValueText(self._tr("never"))
             idle_row.addWidget(self.idle_sleep_spin)
 
             idle_row.addStretch()
-            self.idle_apply_btn = QPushButton("保存设置")
+            self.idle_apply_btn = QPushButton(self._tr("save_settings"))
             self.idle_apply_btn.setObjectName("SystemAction")
             self.idle_apply_btn.clicked.connect(self._apply_idle_settings)
             idle_row.addWidget(self.idle_apply_btn)
@@ -398,7 +443,7 @@ class PowerTimer(QMainWindow):
             layout.addWidget(self.idle_group)
 
         # ── 主操作 ──
-        self.action_btn = QPushButton("▶  开始倒计时")
+        self.action_btn = QPushButton(self._tr("start"))
         self.action_btn.setObjectName("PrimaryAction")
         self.action_btn.setMinimumHeight(44)
         self.action_btn.clicked.connect(self._toggle_action)
@@ -408,18 +453,13 @@ class PowerTimer(QMainWindow):
         self.info_text = QLabel()
         self.info_text.setWordWrap(True)
         self.info_text.setObjectName("SecondaryText")
-        self.help_btn = QPushButton("帮助")
-        self.help_btn.setObjectName("HelpButton")
-        self.help_btn.setToolTip("查看使用说明和权限提示")
-        self.help_btn.clicked.connect(self._show_help)
-
         footer_layout = QHBoxLayout()
         footer_layout.setContentsMargins(0, 0, 0, 0)
-        footer_layout.addWidget(self.help_btn)
         footer_layout.addStretch()
 
-        self.status_label = QLabel("就绪")
+        self.status_label = QLabel(self._tr("status_ready"))
         self.status_label.setObjectName("StatusLabel")
+        self.status_label.setFixedHeight(20)
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer_layout.addWidget(self.status_label)
         layout.addLayout(footer_layout)
@@ -453,7 +493,8 @@ class PowerTimer(QMainWindow):
         # 切换选项面板
         self.options_stack.setCurrentIndex(func)
         self.options_summary.setText(
-            "关机" if func == self.FUNC_SHUTDOWN else "睡眠与关屏")
+            self._tr("shutdown_summary")
+            if func == self.FUNC_SHUTDOWN else self._tr("sleep_summary"))
         self._animate_options_transition()
 
         # macOS 空闲设置仅睡眠模式可见
@@ -462,6 +503,61 @@ class PowerTimer(QMainWindow):
 
         self._update_exec_time_hint()
         self._update_info_text()
+
+    def _on_language_changed(self, index):
+        code = self.language_combo.itemData(index)
+        if code:
+            self.language_manager.set_language(code)
+
+    def _apply_language(self, _language):
+        """刷新当前界面的静态文案和动态预览。"""
+        self.setWindowTitle(f"{APP_NAME} - {self._tr('window_title')}")
+        self.subtitle.setText(self._tr("brand_subtitle"))
+        self.help_btn.setText(self._tr("help"))
+        self.help_btn.setToolTip(self._tr("help_tip"))
+        self.tray_toggle_action.setText(self._tr("tray_toggle"))
+        self.tray_quit_action.setText(self._tr("tray_quit"))
+        self.btn_shutdown.setText(self._tr("tab_shutdown"))
+        self.btn_sleep.setText(self._tr("tab_sleep"))
+        self.eyebrow.setText(self._tr("next_action"))
+        self.settings_title.setText(self._tr("execution_time"))
+        self.setting_caption.setText(self._tr("execution_caption"))
+        self.min_caption.setText(self._tr("one_minute"))
+        self.max_caption.setText(self._tr("twenty_four_hours"))
+        self.options_title.setText(self._tr("options"))
+        self.sd_hint.setText(self._tr("shutdown_hint"))
+        self.radio_sleep.setText(self._tr("sleep_mode"))
+        self.radio_sleep.setToolTip(self._tr("sleep_mode"))
+        self.radio_screen.setText(self._tr("screen_mode"))
+        self.radio_screen.setToolTip(self._tr("screen_mode_tip"))
+        self.radio_both.setText(self._tr("both_mode"))
+        self.radio_both.setToolTip(self._tr("both_mode_tip"))
+        self.offset_label.setText(self._tr("offset_label"))
+        self.offset_suffix.setText(self._tr("offset_suffix"))
+        self.screen_offset_spin.setSuffix(self._tr("minutes_suffix"))
+        self.lock_checkbox.setText(self._tr("lock_screen"))
+        self.prevent_sleep_checkbox.setText(self._tr("prevent_sleep"))
+        self.prevent_sleep_checkbox.setToolTip(
+            self._tr("prevent_sleep_tip"))
+        if self.idle_group:
+            self.idle_group.setTitle(self._tr("idle_title"))
+            self.idle_hint.setText(self._tr("idle_hint"))
+            self.lbl_display.setText(self._tr("display_sleep"))
+            self.lbl_sleep.setText(self._tr("system_sleep"))
+            self.idle_display_spin.setSuffix(self._tr("minutes_suffix"))
+            self.idle_display_spin.setSpecialValueText(self._tr("never"))
+            self.idle_sleep_spin.setSuffix(self._tr("minutes_suffix"))
+            self.idle_sleep_spin.setSpecialValueText(self._tr("never"))
+            self.idle_apply_btn.setText(self._tr("save_settings"))
+        if self.current_func == self.FUNC_SLEEP:
+            self._on_sleep_mode_changed()
+        else:
+            self.options_summary.setText(self._tr("shutdown_summary"))
+        self._update_slider_label(self.custom_slider.value())
+        self._update_button_state()
+        self._update_info_text()
+        if not self.is_running:
+            self.status_label.setText(self._tr("status_ready"))
 
     # ═══════════ 辅助方法 ═══════════
     def _update_slider_label(self, value):
@@ -472,11 +568,14 @@ class PowerTimer(QMainWindow):
             hours = value // 60
             minutes = value % 60
             if minutes > 0:
-                self.slider_value_label.setText(f"{hours}小时{minutes}分")
+                self.slider_value_label.setText(self._tr(
+                    "duration_hours_minutes", hours=hours, minutes=minutes))
             else:
-                self.slider_value_label.setText(f"{hours}小时")
+                self.slider_value_label.setText(
+                    self._tr("duration_hours", hours=hours))
         else:
-            self.slider_value_label.setText(f"{value}分钟")
+            self.slider_value_label.setText(
+                self._tr("duration_minutes", value=value))
         self._update_exec_time_hint()
 
     def _update_exec_time_hint(self):
@@ -485,20 +584,25 @@ class PowerTimer(QMainWindow):
         time_str = exec_time.strftime('%H:%M')
 
         if self.current_func == self.FUNC_SHUTDOWN:
-            self.exec_time_label.setText(f"预计关机时间: {time_str}")
+            self.exec_time_label.setText(
+                self._tr("preview_shutdown", time=time_str))
         else:
             mode = self._get_sleep_mode()
             if mode == PowerManager.MODE_SCREEN_OFF:
-                self.exec_time_label.setText(f"预计关屏时间: {time_str}")
+                self.exec_time_label.setText(
+                    self._tr("preview_screen", time=time_str))
             elif mode == PowerManager.MODE_BOTH:
                 offset = self.screen_offset_spin.value()
                 screen_time = (datetime.now()
                                + timedelta(minutes=minutes - offset))
                 self.exec_time_label.setText(
-                    f"预计关屏: {screen_time.strftime('%H:%M')}  "
-                    f"睡眠: {time_str}")
+                    self._tr(
+                        "preview_both",
+                        screen_time=screen_time.strftime('%H:%M'),
+                        sleep_time=time_str))
             else:
-                self.exec_time_label.setText(f"预计睡眠时间: {time_str}")
+                self.exec_time_label.setText(
+                    self._tr("preview_sleep", time=time_str))
 
     def _get_sleep_mode(self):
         checked_id = self.mode_btn_group.checkedId()
@@ -516,9 +620,9 @@ class PowerTimer(QMainWindow):
         self.lock_checkbox.setVisible(not screen_only)
         self.prevent_sleep_checkbox.setVisible(not screen_only)
         mode_names = {
-            PowerManager.MODE_SLEEP: "系统睡眠",
-            PowerManager.MODE_SCREEN_OFF: "关闭屏幕",
-            PowerManager.MODE_BOTH: "关屏后睡眠",
+            PowerManager.MODE_SLEEP: self._tr("sleep_mode"),
+            PowerManager.MODE_SCREEN_OFF: self._tr("screen_mode"),
+            PowerManager.MODE_BOTH: self._tr("both_mode"),
         }
         self.options_summary.setText(mode_names[mode])
         self._update_exec_time_hint()
@@ -527,39 +631,29 @@ class PowerTimer(QMainWindow):
         """按需显示帮助内容，避免帮助文字长期占用主界面空间。"""
         QMessageBox.information(
             self,
-            f"{APP_NAME} 帮助",
-            f"{self.info_text.text()}\n\n"
-            "权限提示：\n"
-            "• macOS 关机和系统空闲设置可能需要管理员密码。\n"
-            "• 锁屏操作需要允许应用控制“系统事件”。\n"
-            "• 关闭窗口后任务会继续在菜单栏托盘运行。",
+            self._tr("help_title"),
+            f"{self.info_text.text()}\n\n{self._tr('help_permissions')}",
         )
 
     def _update_info_text(self):
         if self.current_func == self.FUNC_SHUTDOWN:
-            self.info_text.setText(
-                "1. 拖动滑块设置关机倒计时时长\n"
-                "2. 点击「开始倒计时」，结束时系统自动关机\n"
-                "3. 「停止运行」可取消关机计划\n"
-                "4. 关闭窗口将最小化到托盘继续运行")
+            self.info_text.setText(self._tr("shutdown_info"))
         else:
-            self.info_text.setText(
-                "1. 选择模式并拖动滑块设置倒计时时长\n"
-                "2. 点击「开始倒计时」启动任务\n"
-                "3. 「停止运行」可取消任务\n"
-                "4. 「系统空闲睡眠」可永久修改系统电源参数")
+            self.info_text.setText(self._tr("sleep_info"))
 
     def _update_button_state(self):
         if self.is_running:
-            self.action_btn.setText("⏹ 停止运行")
+            self.action_btn.setText(self._tr("stop"))
             self.action_btn.setProperty("state", "running")
         else:
-            self.action_btn.setText("▶ 开始倒计时")
+            self.action_btn.setText(self._tr("start"))
             self.action_btn.setProperty("state", "normal")
         self.action_btn.style().unpolish(self.action_btn)
         self.action_btn.style().polish(self.action_btn)
         if hasattr(self, "status_badge"):
-            self.status_badge.setText("运行中" if self.is_running else "待机")
+            self.status_badge.setText(
+                self._tr("running") if self.is_running
+                else self._tr("ready"))
             self.status_badge.setProperty(
                 "state", "running" if self.is_running else "ready")
             self.status_badge.style().unpolish(self.status_badge)
@@ -630,17 +724,18 @@ class PowerTimer(QMainWindow):
         exec_time = (datetime.now()
                      + timedelta(seconds=self.total_duration))
         if self.current_func == self.FUNC_SHUTDOWN:
-            self.status_label.setText("正在创建关机计划，请完成系统授权…")
+            self.status_label.setText(self._tr("shutdown_authorizing"))
         else:
             mode_names = {
-                PowerManager.MODE_SLEEP: "进入睡眠",
-                PowerManager.MODE_SCREEN_OFF: "关闭屏幕",
-                PowerManager.MODE_BOTH: "关屏+睡眠",
+                PowerManager.MODE_SLEEP: self._tr("sleep_mode"),
+                PowerManager.MODE_SCREEN_OFF: self._tr("screen_mode"),
+                PowerManager.MODE_BOTH: self._tr("both_mode"),
             }
             mode = self._get_sleep_mode()
             self.status_label.setText(
-                f"将在 {exec_time.strftime('%H:%M:%S')} "
-                f"{mode_names[mode]}")
+                self._tr("scheduled_action",
+                         time=exec_time.strftime('%H:%M:%S'),
+                         action=mode_names[mode]))
         self.status_label.setStyleSheet("color: #f85149; font-size: 12px;")
 
     def _run_shutdown_operation(self, operation, seconds=None):
@@ -659,7 +754,8 @@ class PowerTimer(QMainWindow):
         self.shutdown_operation = None
         if operation == "schedule":
             if not success:
-                self._finish_stop("无法创建关机计划，请检查授权", "#f85149")
+                self._finish_stop(
+                    self._tr("shutdown_create_failed"), "#f85149")
             elif self.cancel_after_shutdown_scheduled:
                 self._begin_shutdown_cancel()
             elif self.is_running:
@@ -668,17 +764,18 @@ class PowerTimer(QMainWindow):
                 exec_time = (datetime.now()
                              + timedelta(seconds=self.total_duration))
                 self.status_label.setText(
-                    f"将在 {exec_time.strftime('%H:%M:%S')} 关机")
+                    self._tr("shutdown_scheduled",
+                             time=exec_time.strftime('%H:%M:%S')))
                 self.status_label.setStyleSheet(
                     "color: #f85149; font-size: 12px;")
             return
 
         if success:
-            self._finish_stop("关机任务已取消", "#58a6ff")
+            self._finish_stop(self._tr("shutdown_canceled"), "#58a6ff")
         else:
             # 此时系统关机计划可能依然有效，保留“停止运行”按钮供重试，
             # 不能错误地允许创建另一个计划。
-            self.status_label.setText("取消关机计划失败，请重试")
+            self.status_label.setText(self._tr("shutdown_cancel_failed"))
             self.status_label.setStyleSheet(
                 "color: #f85149; font-size: 12px;")
             self.action_btn.setEnabled(True)
@@ -686,7 +783,7 @@ class PowerTimer(QMainWindow):
     def _begin_shutdown_cancel(self):
         self.shutdown_operation = "cancel"
         self.cancel_after_shutdown_scheduled = False
-        self.status_label.setText("正在取消关机计划…")
+        self.status_label.setText(self._tr("shutdown_canceling"))
         self.status_label.setStyleSheet("color: #f85149; font-size: 12px;")
         threading.Thread(
             target=self._run_shutdown_operation,
@@ -742,24 +839,24 @@ class PowerTimer(QMainWindow):
                         target=self._run_both_action,
                         args=(self.lock_checkbox.isChecked(),),
                         daemon=True).start()
-                self.status_label.setText("正在执行睡眠命令…")
+                self.status_label.setText(self._tr("sleep_starting"))
             return
 
         messages = {
-            PowerManager.MODE_SLEEP: ("系统睡眠命令已发送", "#107c10"),
-            PowerManager.MODE_SCREEN_OFF: ("屏幕已关闭", "#107c10"),
-            PowerManager.MODE_BOTH: ("关屏和睡眠命令已发送", "#107c10"),
+            PowerManager.MODE_SLEEP: (self._tr("power_command_sent"), "#107c10"),
+            PowerManager.MODE_SCREEN_OFF: (self._tr("screen_off"), "#107c10"),
+            PowerManager.MODE_BOTH: (self._tr("both_command_sent"), "#107c10"),
         }
         failures = {
-            PowerManager.MODE_SLEEP: "进入睡眠失败，请检查系统权限",
-            PowerManager.MODE_SCREEN_OFF: "关闭屏幕失败，请检查系统权限",
-            PowerManager.MODE_BOTH: "关屏或睡眠失败，请检查系统权限",
+            PowerManager.MODE_SLEEP: self._tr("sleep_failed"),
+            PowerManager.MODE_SCREEN_OFF: self._tr("screen_failed"),
+            PowerManager.MODE_BOTH: self._tr("both_failed"),
         }
         if success:
             message, color = messages[operation]
         else:
             message, color = failures.get(
-                operation, "电源操作失败，请检查系统权限"), "#f85149"
+                operation, self._tr("power_failed")), "#f85149"
         self.status_label.setText(message)
         self.status_label.setStyleSheet(
             f"color: {color}; font-size: 12px;")
@@ -818,7 +915,7 @@ class PowerTimer(QMainWindow):
 
             if self.current_func == self.FUNC_SHUTDOWN:
                 # 关机已由系统调度执行，无需额外操作
-                self.status_label.setText("系统关机已执行")
+                self.status_label.setText(self._tr("shutdown_executed"))
             else:
                 mode = self._get_sleep_mode()
                 if mode == PowerManager.MODE_SLEEP:
@@ -827,31 +924,31 @@ class PowerTimer(QMainWindow):
                         target=self._run_power_action,
                         args=(PowerManager.MODE_SLEEP, lock),
                         daemon=True).start()
-                    self.status_label.setText("正在进入睡眠…")
+                    self.status_label.setText(self._tr("sleep_starting"))
 
                 elif mode == PowerManager.MODE_SCREEN_OFF:
                     threading.Thread(
                         target=self._run_power_action,
                         args=(PowerManager.MODE_SCREEN_OFF,),
                         daemon=True).start()
-                    self.status_label.setText("正在关闭屏幕…")
+                    self.status_label.setText(self._tr("screen_starting"))
 
                 elif mode == PowerManager.MODE_BOTH:
                     if self.screen_off_in_progress:
                         self.pending_both_sleep = True
-                        self.status_label.setText("正在等待关屏命令完成…")
+                        self.status_label.setText(self._tr("both_waiting"))
                     elif self.screen_off_done:
                         threading.Thread(
                             target=self._run_power_action,
                             args=(PowerManager.MODE_SLEEP,),
                             daemon=True).start()
-                        self.status_label.setText("正在进入睡眠…")
+                        self.status_label.setText(self._tr("sleep_starting"))
                     else:
                         threading.Thread(
                             target=self._run_both_action,
                             args=(self.lock_checkbox.isChecked(),),
                             daemon=True).start()
-                        self.status_label.setText("正在执行关屏和睡眠…")
+                        self.status_label.setText(self._tr("both_starting"))
 
             self.status_label.setStyleSheet(
                 "color: #f85149; font-size: 12px;")
@@ -880,7 +977,7 @@ class PowerTimer(QMainWindow):
                 if self.timer_id:
                     self.timer_id.stop()
                 self.action_btn.setEnabled(False)
-                self.status_label.setText("正在等待并取消关机计划…")
+                self.status_label.setText(self._tr("shutdown_wait_cancel"))
                 self.status_label.setStyleSheet(
                     "color: #f85149; font-size: 12px;")
                 return
@@ -891,7 +988,7 @@ class PowerTimer(QMainWindow):
                 self._begin_shutdown_cancel()
             return
 
-        self._finish_stop("任务已取消", "#58a6ff")
+        self._finish_stop(self._tr("task_canceled"), "#58a6ff")
 
     # ═══════════ macOS 空闲设置 ═══════════
     def _load_idle_settings(self):
@@ -906,7 +1003,7 @@ class PowerTimer(QMainWindow):
         sleep_min = self.idle_sleep_spin.value()
 
         self.idle_apply_btn.setEnabled(False)
-        self.idle_apply_btn.setText("保存中…")
+        self.idle_apply_btn.setText(self._tr("idle_saving"))
 
         def _do_apply():
             ok = PowerManager.set_system_idle_settings(
@@ -920,17 +1017,18 @@ class PowerTimer(QMainWindow):
     def _on_idle_applied(self, success):
         self.idle_apply_btn.setEnabled(True)
         if success:
-            self.idle_apply_btn.setText("已保存")
-            self.status_label.setText("系统空闲睡眠设置已更新")
+            self.idle_apply_btn.setText(self._tr("idle_saved"))
+            self.status_label.setText(self._tr("idle_updated"))
             self.status_label.setStyleSheet(
                 "color: #107c10; font-size: 12px;")
         else:
-            self.idle_apply_btn.setText("保存失败")
-            self.status_label.setText("系统设置保存失败，请重试")
+            self.idle_apply_btn.setText(self._tr("idle_save_failed"))
+            self.status_label.setText(self._tr("idle_error"))
             self.status_label.setStyleSheet(
                 "color: #f85149; font-size: 12px;")
         QTimer.singleShot(
-            3000, lambda: self.idle_apply_btn.setText("保存系统设置"))
+            3000, lambda: self.idle_apply_btn.setText(
+                self._tr("save_settings")))
 
     # ═══════════ 退出 / 关闭 ═══════════
     def _quit_app(self):
