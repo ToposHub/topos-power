@@ -536,6 +536,13 @@ class PowerTimer(QMainWindow):
 
     def _apply_language(self, _language):
         """刷新当前界面的静态文案和动态预览。"""
+        current_index = self.language_combo.findData(
+            self.language_manager.language)
+        if (current_index >= 0
+                and self.language_combo.currentIndex() != current_index):
+            self.language_combo.blockSignals(True)
+            self.language_combo.setCurrentIndex(current_index)
+            self.language_combo.blockSignals(False)
         self.setWindowTitle(f"{APP_NAME} - {self._tr('window_title')}")
         self.subtitle.setText(self._tr("brand_subtitle"))
         self.help_btn.setText(self._tr("help"))
@@ -581,6 +588,7 @@ class PowerTimer(QMainWindow):
         self._update_slider_label(self.custom_slider.value())
         self._update_button_state()
         self._update_info_text()
+        self.phase_timeline.set_phases(self._phase_labels())
         if not self.is_running:
             self.status_label.setText(self._tr("status_ready"))
 
