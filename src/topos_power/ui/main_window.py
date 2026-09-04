@@ -4,7 +4,7 @@ import platform
 from datetime import datetime, timedelta
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                             QHBoxLayout, QLabel, QPushButton, QCheckBox,
+                             QHBoxLayout, QLabel, QPushButton,
                              QFrame, QGroupBox, QSpinBox,
                              QSystemTrayIcon, QMenu, QStyle, QSlider,
                              QRadioButton, QButtonGroup, QStackedWidget,
@@ -18,7 +18,8 @@ from ..config import APP_ICON_PATH, APP_NAME
 from ..core.localization import LanguageManager
 from ..core.power_manager import PowerManager
 from .styles import SLIDER_STYLE, STYLESHEET
-from .widgets import CircularProgress, PowerPhaseTimeline
+from .widgets import (CheckMarkBox, CircularProgress, EditableDurationLabel,
+                      PowerPhaseTimeline)
 
 
 class PowerTimer(QMainWindow):
@@ -38,8 +39,10 @@ class PowerTimer(QMainWindow):
         self.setWindowTitle(f"{APP_NAME} - 电源定时工具")
         if APP_ICON_PATH.exists():
             self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
-        self.setMinimumSize(560, 760)
-        self.resize(620, 800)
+        # English option labels need a little breathing room at the smallest
+        # supported window size, especially in the combined sleep mode.
+        self.setMinimumSize(640, 760)
+        self.resize(680, 800)
 
         self.setStyleSheet(STYLESHEET)
 
@@ -122,8 +125,8 @@ class PowerTimer(QMainWindow):
         self.setCentralWidget(main_widget)
 
         layout = QVBoxLayout(main_widget)
-        layout.setContentsMargins(22, 16, 22, 14)
-        layout.setSpacing(10)
+        layout.setContentsMargins(22, 14, 22, 10)
+        layout.setSpacing(8)
 
         # ── 品牌头部 ──
         header_frame = QFrame()
@@ -276,9 +279,13 @@ class PowerTimer(QMainWindow):
         settings_header.addWidget(self.settings_title)
         settings_header.addStretch()
 
-        self.slider_value_label = QLabel(
-            self._tr("duration_hours", hours=1))
+        self.slider_value_label = EditableDurationLabel()
         self.slider_value_label.setObjectName("LargeSettingValue")
+        self.slider_value_label.setMinimumWidth(96)
+        self.slider_value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.slider_value_label.setToolTip(self._tr("duration_edit_tip"))
+        self.slider_value_label.value_edited.connect(
+            self._on_duration_value_edited)
         settings_header.addWidget(self.slider_value_label)
         settings_layout.addLayout(settings_header)
 
@@ -307,11 +314,10 @@ class PowerTimer(QMainWindow):
         # ── 模式选项卡片 ──
         self.options_card = QFrame()
         self.options_card.setObjectName("Card")
-        self.options_card.setFixedHeight(124)
         options_card_layout = QVBoxLayout(self.options_card)
-        options_card_layout.setContentsMargins(16, 13, 16, 13)
+        options_card_layout.setContentsMargins(12, 11, 12, 11)
         options_card_layout.setSpacing(5)
-        self.options_card.setMinimumHeight(108)
+        self.options_card.setMinimumHeight(124)
 
         options_header = QHBoxLayout()
         self.options_title = QLabel(self._tr("options"))
@@ -325,9 +331,9 @@ class PowerTimer(QMainWindow):
 
         self.options_stack = QStackedWidget()
         self.options_stack.setObjectName("OptionsStack")
-        self.options_stack.setFixedHeight(70)
+        self.options_stack.setMinimumHeight(70)
         self.options_stack.setSizePolicy(
-            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         self.options_opacity = QGraphicsOpacityEffect(self.options_stack)
         self.options_stack.setGraphicsEffect(self.options_opacity)
         self.options_opacity.setOpacity(1.0)
@@ -375,41 +381,54 @@ class PowerTimer(QMainWindow):
 
         self.screen_offset_frame = QFrame()
         offset_layout = QHBoxLayout(self.screen_offset_frame)
-        offset_layout.setContentsMargins(8, 1, 4, 1)
+        offset_layout.setContentsMargins(0, 0, 0, 0)
+        offset_layout.setSpacing(5)
 
         self.offset_label = QLabel(self._tr("offset_label"))
-        self.offset_label.setObjectName("SecondaryText")
+        self.offset_label.setObjectName("CompactOptionText")
         offset_layout.addWidget(self.offset_label)
 
         self.screen_offset_spin = QSpinBox()
         self.screen_offset_spin.setRange(1, 60)
         self.screen_offset_spin.setValue(5)
+        self.screen_offset_spin.setFixedWidth(96)
         self.screen_offset_spin.setSuffix(self._tr("minutes_suffix"))
         self.screen_offset_spin.valueChanged.connect(
             self._update_exec_time_hint)
         offset_layout.addWidget(self.screen_offset_spin)
 
         self.offset_suffix = QLabel(self._tr("offset_suffix"))
-        self.offset_suffix.setObjectName("SecondaryText")
+        self.offset_suffix.setObjectName("CompactOptionText")
         offset_layout.addWidget(self.offset_suffix)
         offset_layout.addStretch()
         self.screen_offset_frame.setVisible(False)
-        self.screen_offset_frame.setMinimumWidth(184)
+
+        # Keep the offset editor and safety toggles on one compact details row.
+        self.screen_offset_frame.setMinimumWidth(0)
         self.screen_offset_frame.setSizePolicy(
-            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         options_row = QHBoxLayout()
-        options_row.setSpacing(10)
+        options_row.setContentsMargins(0, 0, 0, 0)
+        options_row.setSpacing(8)
         options_row.addWidget(self.screen_offset_frame)
-        self.lock_checkbox = QCheckBox(self._tr("lock_screen"))
+        self.lock_checkbox = CheckMarkBox(self._tr("lock_screen"))
         self.lock_checkbox.setChecked(True)
-        self.lock_checkbox.setMinimumWidth(132)
+        # Reserve the full label width plus breathing room. Without an
+        # explicit floor, QHBoxLayout can shrink the first checkbox until its
+        # last characters sit underneath the next checkbox indicator.
+        self.lock_checkbox.setMinimumWidth(150)
+        self.lock_checkbox.setSizePolicy(
+            QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
         options_row.addWidget(self.lock_checkbox)
-        self.prevent_sleep_checkbox = QCheckBox(self._tr("prevent_sleep"))
+        self.prevent_sleep_checkbox = CheckMarkBox(
+            self._tr("prevent_sleep"))
         self.prevent_sleep_checkbox.setToolTip(
             self._tr("prevent_sleep_tip"))
         self.prevent_sleep_checkbox.setChecked(True)
-        self.prevent_sleep_checkbox.setMinimumWidth(135)
+        self.prevent_sleep_checkbox.setMinimumWidth(155)
+        self.prevent_sleep_checkbox.setSizePolicy(
+            QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
         options_row.addWidget(self.prevent_sleep_checkbox)
         options_row.addStretch()
         sl_layout.addLayout(options_row)
@@ -442,6 +461,7 @@ class PowerTimer(QMainWindow):
             self.idle_display_spin = QSpinBox()
             self.idle_display_spin.setRange(0, 10080)
             self.idle_display_spin.setValue(10)
+            self.idle_display_spin.setFixedWidth(108)
             self.idle_display_spin.setSuffix(self._tr("minutes_suffix"))
             self.idle_display_spin.setSpecialValueText(self._tr("never"))
             idle_row.addWidget(self.idle_display_spin)
@@ -454,6 +474,7 @@ class PowerTimer(QMainWindow):
             self.idle_sleep_spin = QSpinBox()
             self.idle_sleep_spin.setRange(0, 10080)
             self.idle_sleep_spin.setValue(30)
+            self.idle_sleep_spin.setFixedWidth(108)
             self.idle_sleep_spin.setSuffix(self._tr("minutes_suffix"))
             self.idle_sleep_spin.setSpecialValueText(self._tr("never"))
             idle_row.addWidget(self.idle_sleep_spin)
@@ -492,6 +513,7 @@ class PowerTimer(QMainWindow):
         layout.addLayout(footer_layout)
 
         self._update_button_state()
+        self._update_slider_label(self.custom_slider.value())
         self._update_exec_time_hint()
         self._update_info_text()
     # ═══════════ 功能切换 ═══════════
@@ -563,6 +585,7 @@ class PowerTimer(QMainWindow):
         self.eyebrow.setText(self._tr("next_action"))
         self.settings_title.setText(self._tr("execution_time"))
         self.setting_caption.setText(self._tr("execution_caption"))
+        self.slider_value_label.setToolTip(self._tr("duration_edit_tip"))
         self.min_caption.setText(self._tr("one_minute"))
         self.max_caption.setText(self._tr("twenty_four_hours"))
         self.options_title.setText(self._tr("options"))
@@ -602,10 +625,15 @@ class PowerTimer(QMainWindow):
             self.status_label.setText(self._tr("status_ready"))
 
     # ═══════════ 辅助方法 ═══════════
+    def _on_duration_value_edited(self, value):
+        """将右上角直接输入的分钟数同步回执行时间滑块。"""
+        self.custom_slider.setValue(max(1, min(1440, int(value))))
+
     def _update_slider_label(self, value):
         # “提前关屏”不能大于总时长，否则会出现过去的预计时间，
         # 并在刚开始倒计时时立即关屏。
         self.screen_offset_spin.setMaximum(value)
+        self.slider_value_label.set_duration_minutes(value)
         if value >= 60:
             hours = value // 60
             minutes = value % 60

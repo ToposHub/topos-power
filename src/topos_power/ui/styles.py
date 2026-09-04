@@ -142,7 +142,7 @@ QCheckBox::indicator {
 QCheckBox::indicator:checked {
     background-color: #238636;
     border-color: #238636;
-    image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><polyline points='2.5,6.5 5,9 9.5,3' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    image: none;
 }
 
 /* ========== 单选按钮 ========== */
@@ -174,10 +174,11 @@ QSpinBox {
     background-color: #21262d;
     border: 1px solid #30363d;
     border-radius: 6px;
-    padding: 5px 28px 5px 10px;
+    padding: 2px 20px 2px 7px;
     color: #e6edf3;
-    min-height: 28px;
-    min-width: 60px;
+    font-size: 10px;
+    min-height: 22px;
+    min-width: 48px;
 }
 
 QSpinBox:focus { border-color: #58a6ff; }
@@ -185,8 +186,8 @@ QSpinBox:focus { border-color: #58a6ff; }
 QSpinBox::up-button {
     subcontrol-origin: border;
     subcontrol-position: top right;
-    width: 22px;
-    height: 15px;
+    width: 16px;
+    height: 11px;
     border: none;
     background-color: transparent;
 }
@@ -194,8 +195,8 @@ QSpinBox::up-button {
 QSpinBox::down-button {
     subcontrol-origin: border;
     subcontrol-position: bottom right;
-    width: 22px;
-    height: 15px;
+    width: 16px;
+    height: 11px;
     border: none;
     background-color: transparent;
 }
@@ -380,6 +381,17 @@ QLabel#LargeSettingValue {
     font-weight: 500;
 }
 
+QLineEdit#DurationEditor {
+    background-color: #20232b;
+    border: 1px solid #3478f6;
+    border-radius: 7px;
+    color: #f5f5f7;
+    font-size: 18px;
+    font-weight: 500;
+    min-height: 26px;
+    padding: 1px 7px;
+}
+
 QLabel#SettingCaption {
     color: #8d9099;
     font-size: 12px;
@@ -393,9 +405,20 @@ QFrame#Divider {
 
 QRadioButton, QCheckBox {
     color: #d9dce3;
-    spacing: 8px;
+    spacing: 6px;
+    font-size: 11px;
     min-height: 22px;
     padding: 0px;
+}
+
+QFrame#Card QCheckBox {
+    spacing: 5px;
+    font-size: 10px;
+}
+
+QLabel#CompactOptionText {
+    color: #8d9099;
+    font-size: 9px;
 }
 
 QRadioButton:hover, QCheckBox:hover {

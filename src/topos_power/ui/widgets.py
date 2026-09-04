@@ -1,9 +1,137 @@
 """Topos Power 的轻量动态控件。"""
 
-from PyQt6.QtCore import (QEasingCurve, QPropertyAnimation, QRectF, QSize,
-                          Qt, QTimer, pyqtProperty)
-from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPen
-from PyQt6.QtWidgets import QSizePolicy, QWidget
+from PyQt6.QtCore import (QEasingCurve, QEvent, QPropertyAnimation, QRectF,
+                          QSize, Qt, QTimer, pyqtProperty, pyqtSignal)
+from PyQt6.QtGui import (QBrush, QColor, QFont, QIntValidator, QPainter, QPen)
+from PyQt6.QtWidgets import (QApplication, QCheckBox, QLabel, QLineEdit,
+                             QSizePolicy, QStyle, QStyleOptionButton, QWidget)
+
+
+class _DurationEditor(QLineEdit):
+    """支持 Esc 取消的短时长输入框。"""
+
+    canceled = pyqtSignal()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.canceled.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+
+class EditableDurationLabel(QLabel):
+    """可双击切换为分钟数输入的时长标签。"""
+
+    value_edited = pyqtSignal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._editor = None
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._start_editing()
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
+
+    def _start_editing(self):
+        if self._editor is not None:
+            return
+
+        # Use a sibling overlay instead of a child of the label. A child is
+        # clipped to the label's original bounds, which can cut off the
+        # editor border or the entered value on some window sizes.
+        editor = _DurationEditor(self.parentWidget())
+        editor.setObjectName("DurationEditor")
+        editor.setAlignment(Qt.AlignmentFlag.AlignRight)
+        editor.setValidator(QIntValidator(1, 1440, editor))
+        editor.setText(str(self.property("durationMinutes") or ""))
+        editor.setToolTip(self.toolTip())
+        editor_width = max(self.width(), 116)
+        editor_rect = self.geometry()
+        editor_rect.setLeft(editor_rect.right() - editor_width + 1)
+        editor_rect.setWidth(editor_width)
+        editor.setGeometry(editor_rect)
+        editor.editingFinished.connect(self._commit_editing)
+        editor.canceled.connect(self._cancel_editing)
+        self._editor = editor
+        app = QApplication.instance()
+        if app is not None:
+            app.installEventFilter(self)
+        editor.show()
+        editor.raise_()
+        editor.selectAll()
+        editor.setFocus()
+
+    def set_duration_minutes(self, value):
+        self.setProperty("durationMinutes", int(value))
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def _commit_editing(self):
+        if self._editor is None:
+            return
+        text = self._editor.text().strip()
+        if text:
+            self.value_edited.emit(int(text))
+        self._close_editor()
+
+    def _cancel_editing(self):
+        self._close_editor()
+
+    def eventFilter(self, watched, event):
+        if (self._editor is not None
+                and event.type() == QEvent.Type.MouseButtonPress):
+            inside_editor = watched is self._editor
+            if isinstance(watched, QWidget):
+                inside_editor = inside_editor or self._editor.isAncestorOf(
+                    watched)
+            if not inside_editor:
+                self._commit_editing()
+        return super().eventFilter(watched, event)
+
+    def _close_editor(self):
+        editor = self._editor
+        self._editor = None
+        app = QApplication.instance()
+        if app is not None:
+            app.removeEventFilter(self)
+        if editor is not None:
+            editor.hide()
+            editor.deleteLater()
+
+
+class CheckMarkBox(QCheckBox):
+    """复选框：在平台样式的激活底色上补一个清晰的白色勾。"""
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not self.isChecked():
+            return
+
+        option = QStyleOptionButton()
+        self.initStyleOption(option)
+        indicator = self.style().subElementRect(
+            QStyle.SubElement.SE_CheckBoxIndicator, option, self)
+        if not indicator.isValid():
+            return
+
+        painter = QPainter(self)
+        pen = QPen(QColor("#ffffff"), max(1, indicator.height() // 7))
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        left = indicator.left() + indicator.width() * 0.24
+        middle = indicator.left() + indicator.width() * 0.45
+        right = indicator.left() + indicator.width() * 0.77
+        y = indicator.top()
+        painter.drawLine(int(left), int(y + indicator.height() * 0.52),
+                         int(middle), int(y + indicator.height() * 0.72))
+        painter.drawLine(int(middle), int(y + indicator.height() * 0.72),
+                         int(right), int(y + indicator.height() * 0.30))
+        painter.end()
 
 
 class CircularProgress(QWidget):
