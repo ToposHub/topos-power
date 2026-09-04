@@ -29,7 +29,9 @@ Topos Power/
 │   ├── config.py              # Application name and version
 │   ├── core/localization.py   # Chinese and English interface text
 │   ├── core/power_manager.py  # Cross-platform power operations
+│   ├── assets/                # Application assets, including the app icon
 │   └── ui/                    # Qt interface, widgets, and styles
+├── packaging/                 # PyInstaller entry point and build scripts
 ├── tests/                     # Automated tests
 ├── pyproject.toml
 └── requirements.txt
@@ -146,6 +148,53 @@ You can also install the command-line entry point:
 ```bash
 topos-power
 ```
+
+## Build desktop applications
+
+Build the application on the operating system you want to distribute for. PyInstaller bundles platform-specific Python and Qt files, so a macOS build should be created on macOS and a Windows build on Windows.
+
+Build artifacts are written to `dist/`. The `dist/`, `build/`, generated `.app` bundles, and PyInstaller `.spec` files are ignored by Git.
+
+### macOS `.app`
+
+Install the build dependencies in a virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+python -m pip install pyinstaller
+```
+
+Run the build script from the project root:
+
+```bash
+./packaging/build_macos.sh
+open "dist/Topos Power.app"
+```
+
+The script creates the required `.icns` sizes from `src/topos_power/assets/topos-power-icon.png` and produces `dist/Topos Power.app`.
+
+### Windows `.exe`
+
+Open **Command Prompt** in the project root and install the build dependencies:
+
+```bat
+py -m venv .venv
+.venv\Scripts\activate
+python -m pip install -e .
+python -m pip install pyinstaller pillow
+```
+
+Run the build script:
+
+```bat
+packaging\build_windows.bat
+```
+
+The script converts the shared PNG icon to `.ico` and produces `dist\Topos Power\Topos Power.exe`. Distribute the complete `dist\Topos Power` folder because the executable needs the bundled files beside it.
+
+These local builds are unsigned. macOS may ask the user to approve the app in **Privacy & Security**, and Windows SmartScreen may show a warning until the application is code-signed.
 
 ## Interface languages
 

@@ -29,7 +29,9 @@ Topos Power/
 │   ├── config.py              # 应用名称与版本
 │   ├── core/localization.py   # 中文/英文界面文案
 │   ├── core/power_manager.py  # 跨平台系统电源能力
+│   ├── assets/                # 应用资源，包括 App 图标
 │   └── ui/                    # Qt 界面与样式
+├── packaging/                 # PyInstaller 打包入口与构建脚本
 ├── tests/                     # 自动化测试
 ├── pyproject.toml
 └── requirements.txt
@@ -146,6 +148,53 @@ python -m topos_power
 ```bash
 topos-power
 ```
+
+## 打包为桌面应用
+
+请在目标操作系统上执行打包。PyInstaller 会打包对应平台的 Python 和 Qt 运行文件，因此 macOS 应在 macOS 上构建，Windows 应在 Windows 上构建。
+
+构建产物会写入 `dist/`。项目已通过 `.gitignore` 忽略 `dist/`、`build/`、生成的 `.app` 应用包和 PyInstaller 的 `.spec` 文件。
+
+### 构建 macOS `.app`
+
+在虚拟环境中安装构建依赖：
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+python -m pip install pyinstaller
+```
+
+在项目根目录运行：
+
+```bash
+./packaging/build_macos.sh
+open "dist/Topos Power.app"
+```
+
+脚本会根据 `src/topos_power/assets/topos-power-icon.png` 自动生成 macOS 所需的多尺寸 `.icns` 图标，并生成 `dist/Topos Power.app`。
+
+### 构建 Windows `.exe`
+
+在项目根目录打开 **命令提示符**，安装构建依赖：
+
+```bat
+py -m venv .venv
+.venv\Scripts\activate
+python -m pip install -e .
+python -m pip install pyinstaller pillow
+```
+
+运行打包脚本：
+
+```bat
+packaging\build_windows.bat
+```
+
+脚本会将共用的 PNG 图标转换为 Windows 所需的 `.ico`，并生成 `dist\Topos Power\Topos Power.exe`。发布时请分发完整的 `dist\Topos Power` 文件夹，不能只复制 `.exe` 文件。
+
+这些本地构建产物默认未签名。macOS 用户可能需要在“系统设置 → 隐私与安全性”中批准首次打开；Windows SmartScreen 也可能在未签名时显示警告。
 
 ## 界面语言
 
