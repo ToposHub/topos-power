@@ -14,7 +14,7 @@ from PyQt6.QtCore import (Qt, QTimer, pyqtSignal, QPropertyAnimation,
                           QEasingCurve)
 from PyQt6.QtGui import QIcon, QFont
 
-from ..config import APP_NAME
+from ..config import APP_ICON_PATH, APP_NAME
 from ..core.localization import LanguageManager
 from ..core.power_manager import PowerManager
 from .styles import SLIDER_STYLE, STYLESHEET
@@ -36,6 +36,8 @@ class PowerTimer(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} - 电源定时工具")
+        if APP_ICON_PATH.exists():
+            self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.setMinimumSize(560, 760)
         self.resize(620, 800)
 
@@ -70,7 +72,9 @@ class PowerTimer(QMainWindow):
 
     # ═══════════ 系统托盘 ═══════════
     def _setup_tray(self):
-        icon = QIcon.fromTheme("computer")
+        icon = QIcon(str(APP_ICON_PATH)) if APP_ICON_PATH.exists() else QIcon()
+        if icon.isNull():
+            icon = QIcon.fromTheme("computer")
         if icon.isNull():
             icon = self.style().standardIcon(
                 QStyle.StandardPixmap.SP_ComputerIcon)

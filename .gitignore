@@ -4,6 +4,8 @@ __pycache__/
 .venv/
 dist/
 build/
+*.app/
+*.spec
 .DS_Store
 .pytest_cache/
 .ruff_cache/
